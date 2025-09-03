@@ -1,6 +1,7 @@
 /**
- * i18n指令
- * 提供v-t指令用于模板中的翻译
+ * 德语本地化指令
+ * 提供v-t指令用于模板中的德语文本处理
+ * 专注于德语用户体验优化
  */
 
 import type { Directive, DirectiveBinding } from 'vue'
