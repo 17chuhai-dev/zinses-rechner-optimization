@@ -88,13 +88,33 @@ export class TaxHelpService {
   private contextualHelp: Map<string, ContextualHelp> = new Map()
   private calculationExamples: Map<string, CalculationExample> = new Map()
   private faqItems: Map<string, FAQItem> = new Map()
+  private contentUpdateListeners: Map<string, (content: HelpContent) => void> = new Map()
+  private initialized: boolean = false
 
   constructor() {
-    this.initializeHelpContent()
-    this.initializeContextualHelp()
-    this.initializeCalculationExamples()
-    this.initializeFAQ()
-    console.log('📚 税收帮助服务已初始化')
+    // 构造函数中不立即初始化，等待显式调用initialize
+    console.log('📚 税收帮助服务已创建')
+  }
+
+  /**
+   * 初始化服务
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) {
+      return
+    }
+
+    try {
+      this.initializeHelpContent()
+      this.initializeContextualHelp()
+      this.initializeCalculationExamples()
+      this.initializeFAQ()
+      this.initialized = true
+      console.log('📚 税收帮助服务已初始化')
+    } catch (error) {
+      console.error('税收帮助服务初始化失败:', error)
+      throw error
+    }
   }
 
   static getInstance(): TaxHelpService {
@@ -126,7 +146,7 @@ export class TaxHelpService {
   searchHelp(query: string): HelpContent[] {
     const searchTerm = query.toLowerCase()
     return Array.from(this.helpContent.values())
-      .filter(content => 
+      .filter(content =>
         content.title.toLowerCase().includes(searchTerm) ||
         content.content.toLowerCase().includes(searchTerm) ||
         content.tags.some(tag => tag.toLowerCase().includes(searchTerm))
@@ -146,6 +166,31 @@ export class TaxHelpService {
    */
   getContextualHelp(context: string): ContextualHelp | null {
     return this.contextualHelp.get(context) || null
+  }
+
+  /**
+   * 注册帮助内容更新监听器
+   */
+  onHelpContentUpdate(componentId: string, callback: (content: HelpContent) => void): () => void {
+    this.contentUpdateListeners.set(componentId, callback)
+
+    // 返回取消订阅函数
+    return () => {
+      this.contentUpdateListeners.delete(componentId)
+    }
+  }
+
+  /**
+   * 触发帮助内容更新事件
+   */
+  private notifyContentUpdate(content: HelpContent): void {
+    this.contentUpdateListeners.forEach(callback => {
+      try {
+        callback(content)
+      } catch (error) {
+        console.error('帮助内容更新回调执行失败:', error)
+      }
+    })
   }
 
   /**
@@ -263,10 +308,10 @@ export class TaxHelpService {
       content: `
         <h3>Was sind Kapitalerträge?</h3>
         <p>Kapitalerträge sind Einkünfte aus Kapitalvermögen, wie Zinsen, Dividenden und Kursgewinne aus dem Verkauf von Wertpapieren.</p>
-        
+
         <h3>Wie werden Kapitalerträge besteuert?</h3>
         <p>In Deutschland unterliegen Kapitalerträge der Abgeltungssteuer in Höhe von 25%. Zusätzlich fallen 5,5% Solidaritätszuschlag und gegebenenfalls Kirchensteuer an.</p>
-        
+
         <h3>Was ist der Freibetrag?</h3>
         <p>Jeder Steuerpflichtige hat einen jährlichen Freibetrag von 801€ (seit 2023). Bis zu diesem Betrag bleiben Kapitalerträge steuerfrei.</p>
       `,
@@ -284,7 +329,7 @@ export class TaxHelpService {
       content: `
         <h3>Was ist die Abgeltungssteuer?</h3>
         <p>Die Abgeltungssteuer ist eine Quellensteuer auf Kapitalerträge. Sie beträgt einheitlich 25% und gilt seit 2009.</p>
-        
+
         <h3>Berechnung der Gesamtsteuer:</h3>
         <ul>
           <li>Abgeltungssteuer: 25%</li>
@@ -292,7 +337,7 @@ export class TaxHelpService {
           <li>Kirchensteuer: 8-9% der Abgeltungssteuer = 2-2,25%</li>
           <li><strong>Gesamtbelastung: 28,375% - 28,625%</strong></li>
         </ul>
-        
+
         <h3>Beispielrechnung:</h3>
         <p>Bei 1.000€ Kapitalertrag und Kirchensteuerpflicht (9%):</p>
         <ul>
@@ -316,13 +361,13 @@ export class TaxHelpService {
       content: `
         <h3>Was ist ein Freistellungsauftrag?</h3>
         <p>Mit einem Freistellungsauftrag können Sie Ihre Bank anweisen, Kapitalerträge bis zum Freibetrag nicht zu versteuern.</p>
-        
+
         <h3>Freibeträge 2023:</h3>
         <ul>
           <li>Einzelpersonen: 801€ pro Jahr</li>
           <li>Verheiratete: 1.602€ pro Jahr (gemeinsam veranlagt)</li>
         </ul>
-        
+
         <h3>Optimale Verteilung:</h3>
         <p>Verteilen Sie Ihren Freibetrag auf die Depots mit den höchsten erwarteten Erträgen:</p>
         <ol>
@@ -330,7 +375,7 @@ export class TaxHelpService {
           <li>Depot mit häufigen Verkäufen</li>
           <li>Tagesgeld-/Festgeldkonten</li>
         </ol>
-        
+
         <h3>Wichtige Hinweise:</h3>
         <ul>
           <li>Der Freibetrag gilt kalenderjährlich</li>
@@ -352,7 +397,7 @@ export class TaxHelpService {
       content: `
         <h3>Was ist die Teilfreistellung?</h3>
         <p>Die Teilfreistellung reduziert die steuerpflichtigen Erträge von Investmentfonds und ETFs um einen bestimmten Prozentsatz.</p>
-        
+
         <h3>Teilfreistellungssätze:</h3>
         <table>
           <tr><th>Fondstyp</th><th>Teilfreistellung</th></tr>
@@ -361,7 +406,7 @@ export class TaxHelpService {
           <tr><td>Immobilienfonds</td><td>60%</td></tr>
           <tr><td>Rentenfonds</td><td>0%</td></tr>
         </table>
-        
+
         <h3>Beispielrechnung:</h3>
         <p>1.000€ Gewinn aus Aktien-ETF:</p>
         <ul>
@@ -370,7 +415,7 @@ export class TaxHelpService {
           <li>Steuer (28,625%): 200,38€</li>
           <li><strong>Ersparnis durch Teilfreistellung: 85,88€</strong></li>
         </ul>
-        
+
         <h3>Steueroptimierung:</h3>
         <ul>
           <li>Bevorzugen Sie Aktien-ETFs für bessere Steuereffizienz</li>

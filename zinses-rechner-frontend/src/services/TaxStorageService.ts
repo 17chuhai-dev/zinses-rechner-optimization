@@ -58,7 +58,7 @@ export class TaxStorageService {
   private readonly BACKUP_KEY = 'tax-settings-backups'
   private readonly SYNC_KEY = 'tax-settings-sync'
   private readonly VERSION_KEY = 'tax-settings-version'
-  
+
   private readonly CURRENT_VERSION = '2.0.0'
   private readonly MAX_BACKUPS = 10
   private readonly COMPRESSION_THRESHOLD = 1024 // 1KB
@@ -67,11 +67,30 @@ export class TaxStorageService {
   private usedStorage: number = 0
   private changeCallbacks = new Map<string, (data: StorageData) => void>()
   private errorCallbacks = new Map<string, (error: Error) => void>()
+  private initialized: boolean = false
 
   constructor() {
-    this.initializeStorage()
-    this.checkStorageQuota()
-    console.log('💾 税收设置存储服务已初始化')
+    // 构造函数中不立即初始化，等待显式调用initialize
+    console.log('💾 税收设置存储服务已创建')
+  }
+
+  /**
+   * 初始化存储服务
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) {
+      return
+    }
+
+    try {
+      this.initializeStorage()
+      await this.checkStorageQuota()
+      this.initialized = true
+      console.log('💾 税收设置存储服务已初始化')
+    } catch (error) {
+      console.error('税收设置存储服务初始化失败:', error)
+      throw error
+    }
   }
 
   static getInstance(): TaxStorageService {
@@ -102,7 +121,7 @@ export class TaxStorageService {
       }
 
       // 压缩数据（如果需要）
-      const serializedData = this.shouldCompress(storageData) 
+      const serializedData = this.shouldCompress(storageData)
         ? this.compressData(storageData)
         : JSON.stringify(storageData)
 
@@ -141,7 +160,7 @@ export class TaxStorageService {
   async loadTaxSettings(): Promise<TaxSettings> {
     try {
       const rawData = localStorage.getItem(this.STORAGE_KEY)
-      
+
       if (!rawData) {
         console.log('📂 未找到保存的设置，使用默认设置')
         return { ...DEFAULT_TAX_SETTINGS }
@@ -174,7 +193,7 @@ export class TaxStorageService {
     } catch (error) {
       console.error('❌ 加载税收设置失败:', error)
       this.triggerErrorCallbacks(error as Error)
-      
+
       // 尝试从备份恢复
       const backupSettings = await this.restoreFromLatestBackup()
       if (backupSettings) {
@@ -204,10 +223,10 @@ export class TaxStorageService {
 
       // 获取现有备份
       const existingBackups = await this.getBackups()
-      
+
       // 添加新备份
       existingBackups.push(backupData)
-      
+
       // 限制备份数量
       if (existingBackups.length > this.MAX_BACKUPS) {
         existingBackups.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -235,7 +254,7 @@ export class TaxStorageService {
       if (!rawData) return []
 
       const backups: BackupData[] = JSON.parse(rawData)
-      
+
       // 转换日期字符串为Date对象
       return backups.map(backup => ({
         ...backup,
@@ -255,7 +274,7 @@ export class TaxStorageService {
     try {
       const backups = await this.getBackups()
       const backup = backups.find(b => b.id === backupId)
-      
+
       if (!backup) {
         throw new Error(`Backup mit ID ${backupId} nicht gefunden`)
       }
@@ -284,7 +303,7 @@ export class TaxStorageService {
     try {
       const backups = await this.getBackups()
       const filteredBackups = backups.filter(b => b.id !== backupId)
-      
+
       if (filteredBackups.length === backups.length) {
         throw new Error(`Backup mit ID ${backupId} nicht gefunden`)
       }
@@ -336,7 +355,7 @@ export class TaxStorageService {
   async importAllData(jsonData: string): Promise<boolean> {
     try {
       const importData = JSON.parse(jsonData)
-      
+
       // 验证导入数据格式
       if (!importData.version || !importData.settings) {
         throw new Error('Ungültiges Datenformat')
@@ -437,7 +456,7 @@ export class TaxStorageService {
    */
   private async migrateIfNeeded(storageData: StorageData): Promise<{ migrated: boolean; settings: TaxSettings }> {
     const dataVersion = storageData.metadata.version
-    
+
     if (dataVersion === this.CURRENT_VERSION) {
       return { migrated: false, settings: storageData.settings }
     }
@@ -483,15 +502,15 @@ export class TaxStorageService {
   private compareVersions(version1: string, version2: string): number {
     const v1Parts = version1.split('.').map(Number)
     const v2Parts = version2.split('.').map(Number)
-    
+
     for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
       const v1Part = v1Parts[i] || 0
       const v2Part = v2Parts[i] || 0
-      
+
       if (v1Part < v2Part) return -1
       if (v1Part > v2Part) return 1
     }
-    
+
     return 0
   }
 
@@ -610,7 +629,7 @@ export class TaxStorageService {
     try {
       const backups = await this.getBackups()
       if (backups.length === 0) return null
-      
+
       const latestBackup = backups[0]
       return latestBackup.settings
     } catch {
@@ -629,7 +648,7 @@ export class TaxStorageService {
           pendingChanges: false
         }
       }
-      
+
       const syncData = JSON.parse(rawData)
       return {
         ...syncData,
@@ -662,7 +681,7 @@ export class TaxStorageService {
       description: 'Aktuelle Version',
       migrationRequired: false
     }
-    
+
     localStorage.setItem(this.VERSION_KEY, JSON.stringify(versionInfo))
   }
 
