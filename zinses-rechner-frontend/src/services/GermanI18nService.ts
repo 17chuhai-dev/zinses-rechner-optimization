@@ -107,7 +107,7 @@ export class GermanI18nService {
 
     try {
       // 静态导入德语文件
-      const module = await import('@/locales/de')
+      const module = await import('../locales/de.ts')
       this.state.messages = module.default
       console.log('✅ German messages loaded successfully')
     } catch (error) {
@@ -298,11 +298,11 @@ export function useI18n() {
     formatCurrency: service.formatCurrency.bind(service),
     formatDate: service.formatDate.bind(service),
     formatTime: service.formatTime.bind(service),
-
+    
     // 简化的配置方法
     getCurrentLocaleConfig: service.getConfig.bind(service),
     getAvailableLocaleConfigs: () => [service.getConfig()],
-
+    
     // 兼容性方法（无操作）
     setLocale: async () => Promise.resolve(), // 德语固定，无需切换
   }
@@ -310,8 +310,3 @@ export function useI18n() {
 
 // 默认导出服务实例
 export default germanI18nService
-
-// 兼容性导出 - 保持原有接口
-export { GermanI18nService as I18nService }
-export type { GermanI18nState as I18nState }
-export type { GermanLocaleConfig as LocaleConfig }
