@@ -1,0 +1,277 @@
+{
+  "name": "Zinses Rechner Performance Budget",
+  "version": "1.0.0",
+  "description": "Performance budget configuration for German Financial Calculator",
+  "budgets": [
+    {
+      "type": "bundle",
+      "name": "Initial Bundle",
+      "resourceSizes": [
+        {
+          "type": "initial",
+          "maximumWarning": "500kb",
+          "maximumError": "1mb"
+        },
+        {
+          "type": "anyComponentStyle",
+          "maximumWarning": "50kb",
+          "maximumError": "100kb"
+        },
+        {
+          "type": "any",
+          "maximumWarning": "200kb",
+          "maximumError": "400kb"
+        }
+      ]
+    },
+    {
+      "type": "asset",
+      "name": "Static Assets",
+      "resourceSizes": [
+        {
+          "type": "script",
+          "maximumWarning": "150kb",
+          "maximumError": "300kb"
+        },
+        {
+          "type": "stylesheet",
+          "maximumWarning": "30kb",
+          "maximumError": "60kb"
+        },
+        {
+          "type": "image",
+          "maximumWarning": "100kb",
+          "maximumError": "200kb"
+        },
+        {
+          "type": "font",
+          "maximumWarning": "50kb",
+          "maximumError": "100kb"
+        }
+      ]
+    }
+  ],
+  "webVitals": {
+    "fcp": {
+      "good": 1800,
+      "needsImprovement": 3000,
+      "poor": 3001,
+      "unit": "ms",
+      "description": "First Contentful Paint - Zeit bis zum ersten sichtbaren Inhalt"
+    },
+    "lcp": {
+      "good": 2500,
+      "needsImprovement": 4000,
+      "poor": 4001,
+      "unit": "ms",
+      "description": "Largest Contentful Paint - Zeit bis zum größten sichtbaren Element"
+    },
+    "fid": {
+      "good": 100,
+      "needsImprovement": 300,
+      "poor": 301,
+      "unit": "ms",
+      "description": "First Input Delay - Verzögerung bei der ersten Benutzerinteraktion"
+    },
+    "cls": {
+      "good": 0.1,
+      "needsImprovement": 0.25,
+      "poor": 0.26,
+      "unit": "score",
+      "description": "Cumulative Layout Shift - Kumulative Layoutverschiebung"
+    },
+    "ttfb": {
+      "good": 800,
+      "needsImprovement": 1800,
+      "poor": 1801,
+      "unit": "ms",
+      "description": "Time to First Byte - Zeit bis zum ersten Byte"
+    }
+  },
+  "networkConditions": {
+    "slow3G": {
+      "name": "Slow 3G",
+      "downloadThroughput": 500000,
+      "uploadThroughput": 500000,
+      "latency": 400,
+      "description": "Langsame 3G-Verbindung für Tests"
+    },
+    "regular3G": {
+      "name": "Regular 3G",
+      "downloadThroughput": 1600000,
+      "uploadThroughput": 750000,
+      "latency": 300,
+      "description": "Normale 3G-Verbindung"
+    },
+    "regular4G": {
+      "name": "Regular 4G",
+      "downloadThroughput": 9000000,
+      "uploadThroughput": 9000000,
+      "latency": 170,
+      "description": "Normale 4G-Verbindung"
+    }
+  },
+  "deviceProfiles": {
+    "lowEnd": {
+      "name": "Low-end Mobile",
+      "cpu": 4,
+      "memory": 512,
+      "description": "Schwaches Mobilgerät für Performance-Tests"
+    },
+    "midRange": {
+      "name": "Mid-range Mobile",
+      "cpu": 4,
+      "memory": 2048,
+      "description": "Mittelklasse-Mobilgerät"
+    },
+    "desktop": {
+      "name": "Desktop",
+      "cpu": 4,
+      "memory": 8192,
+      "description": "Standard-Desktop-Computer"
+    }
+  },
+  "thresholds": {
+    "lighthouse": {
+      "performance": 90,
+      "accessibility": 95,
+      "bestPractices": 90,
+      "seo": 90,
+      "pwa": 80
+    },
+    "bundleAnalysis": {
+      "duplicatePackages": 0,
+      "unusedCode": 5,
+      "largePackages": 3
+    }
+  },
+  "monitoring": {
+    "realUserMetrics": {
+      "enabled": true,
+      "sampleRate": 0.1,
+      "endpoints": {
+        "vitals": "/api/metrics/vitals",
+        "errors": "/api/metrics/errors",
+        "navigation": "/api/metrics/navigation"
+      }
+    },
+    "syntheticMonitoring": {
+      "enabled": true,
+      "frequency": "hourly",
+      "locations": ["frankfurt", "berlin", "munich"],
+      "devices": ["desktop", "mobile"]
+    }
+  },
+  "optimizationTargets": {
+    "codesplitting": {
+      "maxInitialChunks": 3,
+      "maxAsyncChunks": 10,
+      "minChunkSize": 20000,
+      "maxChunkSize": 200000
+    },
+    "compression": {
+      "gzip": {
+        "enabled": true,
+        "level": 9,
+        "threshold": 1024
+      },
+      "brotli": {
+        "enabled": true,
+        "quality": 11,
+        "threshold": 1024
+      }
+    },
+    "caching": {
+      "staticAssets": "1y",
+      "dynamicContent": "1h",
+      "apiResponses": "5m"
+    },
+    "images": {
+      "formats": ["webp", "avif", "jpg"],
+      "quality": 85,
+      "maxWidth": 1920,
+      "lazyLoading": true
+    }
+  },
+  "alerts": {
+    "budgetExceeded": {
+      "enabled": true,
+      "channels": ["email", "slack"],
+      "threshold": "error"
+    },
+    "vitalsRegression": {
+      "enabled": true,
+      "channels": ["email"],
+      "threshold": 10
+    },
+    "errorRateIncrease": {
+      "enabled": true,
+      "channels": ["slack"],
+      "threshold": 5
+    }
+  },
+  "reporting": {
+    "frequency": "daily",
+    "recipients": ["dev-team@zinses-rechner.de"],
+    "metrics": [
+      "webVitals",
+      "bundleSize",
+      "errorRate",
+      "userSatisfaction"
+    ],
+    "format": "html"
+  },
+  "environments": {
+    "development": {
+      "budgetMultiplier": 2.0,
+      "strictMode": false,
+      "monitoring": false
+    },
+    "staging": {
+      "budgetMultiplier": 1.2,
+      "strictMode": true,
+      "monitoring": true
+    },
+    "production": {
+      "budgetMultiplier": 1.0,
+      "strictMode": true,
+      "monitoring": true
+    }
+  },
+  "tools": {
+    "lighthouse": {
+      "enabled": true,
+      "config": "desktop",
+      "categories": ["performance", "accessibility", "best-practices", "seo"]
+    },
+    "webPageTest": {
+      "enabled": true,
+      "location": "Frankfurt:Chrome",
+      "connectivity": "3G",
+      "runs": 3
+    },
+    "bundleAnalyzer": {
+      "enabled": true,
+      "threshold": 500000,
+      "gzipSize": true
+    }
+  },
+  "recommendations": {
+    "criticalResourceHints": [
+      "preload critical CSS",
+      "preload critical fonts",
+      "preconnect to external domains"
+    ],
+    "codeOptimizations": [
+      "tree shaking",
+      "dead code elimination",
+      "minification",
+      "compression"
+    ],
+    "loadingStrategies": [
+      "lazy loading for images",
+      "code splitting for routes",
+      "prefetching for likely navigation"
+    ]
+  }
+}

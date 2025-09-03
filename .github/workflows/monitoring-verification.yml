@@ -1,0 +1,450 @@
+name: Monitoring and Alerting Verification
+
+on:
+  schedule:
+    # 每天早上8点验证监控系统
+    - cron: '0 8 * * *'
+    # 每周一进行全面监控验证
+    - cron: '0 6 * * 1'
+  
+  workflow_dispatch:
+    inputs:
+      verification_type:
+        description: 'Type of monitoring verification'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - health-only
+          - alerts-only
+          - dashboard-only
+          - performance-only
+      
+      target_environment:
+        description: 'Target environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+      
+      send_test_alerts:
+        description: 'Send test alerts to notification channels'
+        required: false
+        default: false
+        type: boolean
+
+  push:
+    branches: [ main ]
+    paths:
+      - 'monitoring/**'
+      - '.github/workflows/monitoring-verification.yml'
+      - 'backend/app/api/test/monitoring.py'
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # 健康检查验证
+  health-check-verification:
+    name: 🏥 Health Check Verification
+    runs-on: ubuntu-latest
+    if: github.event.inputs.verification_type != 'alerts-only' && github.event.inputs.verification_type != 'dashboard-only'
+    
+    outputs:
+      api-health: ${{ steps.health-check.outputs.api-health }}
+      frontend-health: ${{ steps.health-check.outputs.frontend-health }}
+      response-time: ${{ steps.health-check.outputs.response-time }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set target URLs
+        id: set-urls
+        run: |
+          if [ "${{ github.event.inputs.target_environment }}" = "production" ]; then
+            echo "api-url=https://api.zinses-rechner.de" >> $GITHUB_OUTPUT
+            echo "frontend-url=https://zinses-rechner.de" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.target_environment }}" = "staging" ]; then
+            echo "api-url=https://staging-api.zinses-rechner.de" >> $GITHUB_OUTPUT
+            echo "frontend-url=https://staging.zinses-rechner.de" >> $GITHUB_OUTPUT
+          else
+            echo "api-url=http://localhost:8000" >> $GITHUB_OUTPUT
+            echo "frontend-url=http://localhost:5173" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify API health endpoint
+        id: health-check
+        run: |
+          echo "🏥 验证API健康检查端点..."
+          
+          API_URL="${{ steps.set-urls.outputs.api-url }}"
+          FRONTEND_URL="${{ steps.set-urls.outputs.frontend-url }}"
+          
+          # 测试API健康检查
+          START_TIME=$(date +%s%3N)
+          API_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" "$API_URL/health" 2>/dev/null)
+          END_TIME=$(date +%s%3N)
+          
+          API_STATUS=$(echo "$API_RESPONSE" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+          RESPONSE_TIME=$((END_TIME - START_TIME))
+          
+          echo "API状态码: $API_STATUS"
+          echo "响应时间: ${RESPONSE_TIME}ms"
+          
+          if [ "$API_STATUS" = "200" ]; then
+            echo "api-health=healthy" >> $GITHUB_OUTPUT
+            echo "✅ API健康检查正常"
+          else
+            echo "api-health=unhealthy" >> $GITHUB_OUTPUT
+            echo "::error::API健康检查失败: HTTP $API_STATUS"
+            exit 1
+          fi
+          
+          echo "response-time=$RESPONSE_TIME" >> $GITHUB_OUTPUT
+          
+          # 测试前端可用性
+          FRONTEND_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" "$FRONTEND_URL" 2>/dev/null)
+          FRONTEND_STATUS=$(echo "$FRONTEND_RESPONSE" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+          
+          if [ "$FRONTEND_STATUS" = "200" ]; then
+            echo "frontend-health=healthy" >> $GITHUB_OUTPUT
+            echo "✅ 前端服务正常"
+          else
+            echo "frontend-health=unhealthy" >> $GITHUB_OUTPUT
+            echo "::error::前端服务异常: HTTP $FRONTEND_STATUS"
+          fi
+
+      - name: Test API functionality
+        run: |
+          echo "🔧 测试API核心功能..."
+          
+          API_URL="${{ steps.set-urls.outputs.api-url }}"
+          
+          # 测试计算API
+          CALC_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+            -X POST "$API_URL/api/v1/calculate/compound-interest" \
+            -H "Content-Type: application/json" \
+            -d '{"principal": 10000, "annual_rate": 4.0, "years": 10, "monthly_payment": 500, "compound_frequency": "monthly"}' \
+            2>/dev/null)
+          
+          CALC_STATUS=$(echo "$CALC_RESPONSE" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+          
+          if [ "$CALC_STATUS" = "200" ]; then
+            echo "✅ 计算API功能正常"
+            
+            # 验证响应格式
+            CALC_BODY=$(echo "$CALC_RESPONSE" | sed 's/HTTPSTATUS:[0-9]*$//')
+            if echo "$CALC_BODY" | jq -e '.final_amount' >/dev/null 2>&1; then
+              echo "✅ 计算结果格式正确"
+            else
+              echo "::warning::计算结果格式可能异常"
+            fi
+          else
+            echo "::error::计算API功能异常: HTTP $CALC_STATUS"
+          fi
+
+  # 告警规则验证
+  alert-rules-verification:
+    name: 🚨 Alert Rules Verification
+    runs-on: ubuntu-latest
+    needs: health-check-verification
+    if: github.event.inputs.verification_type != 'health-only' && github.event.inputs.verification_type != 'dashboard-only'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test alert triggers
+        run: |
+          echo "🚨 测试告警规则触发..."
+          
+          API_URL="${{ needs.health-check-verification.outputs.api-url || 'https://api.zinses-rechner.de' }}"
+          
+          # 测试CPU告警
+          echo "测试CPU使用率告警..."
+          CPU_ALERT=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+            -X POST "$API_URL/test/trigger-alert" \
+            -H "Content-Type: application/json" \
+            -d '{"metric": "cpu_usage", "value": 95, "test": true}' \
+            2>/dev/null || echo "HTTPSTATUS:404")
+          
+          CPU_STATUS=$(echo "$CPU_ALERT" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+          
+          if [ "$CPU_STATUS" = "200" ]; then
+            echo "✅ CPU告警规则可触发"
+          elif [ "$CPU_STATUS" = "404" ]; then
+            echo "⚠️ 告警测试端点不可用（生产环境正常）"
+          else
+            echo "::error::CPU告警规则测试失败: HTTP $CPU_STATUS"
+          fi
+          
+          # 测试内存告警
+          echo "测试内存使用率告警..."
+          MEMORY_ALERT=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+            -X POST "$API_URL/test/trigger-alert" \
+            -H "Content-Type: application/json" \
+            -d '{"metric": "memory_usage", "value": 90, "test": true}' \
+            2>/dev/null || echo "HTTPSTATUS:404")
+          
+          MEMORY_STATUS=$(echo "$MEMORY_ALERT" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+          
+          if [ "$MEMORY_STATUS" = "200" ]; then
+            echo "✅ 内存告警规则可触发"
+          elif [ "$MEMORY_STATUS" = "404" ]; then
+            echo "⚠️ 告警测试端点不可用（生产环境正常）"
+          else
+            echo "::error::内存告警规则测试失败: HTTP $MEMORY_STATUS"
+          fi
+
+      - name: Test notification channels
+        if: github.event.inputs.send_test_alerts == 'true'
+        run: |
+          echo "📢 测试通知渠道..."
+          
+          # 发送测试Slack通知
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            echo "测试Slack通知..."
+            
+            SLACK_PAYLOAD='{
+              "text": "🧪 监控系统验证测试通知",
+              "attachments": [
+                {
+                  "color": "good",
+                  "fields": [
+                    {
+                      "title": "测试时间",
+                      "value": "'$(date)'",
+                      "short": true
+                    },
+                    {
+                      "title": "环境",
+                      "value": "${{ github.event.inputs.target_environment }}",
+                      "short": true
+                    },
+                    {
+                      "title": "触发者",
+                      "value": "${{ github.actor }}",
+                      "short": true
+                    }
+                  ],
+                  "footer": "GitHub Actions 监控验证"
+                }
+              ]
+            }'
+            
+            SLACK_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+              -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -d "$SLACK_PAYLOAD" \
+              2>/dev/null)
+            
+            SLACK_STATUS=$(echo "$SLACK_RESPONSE" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+            
+            if [ "$SLACK_STATUS" = "200" ]; then
+              echo "✅ Slack通知渠道正常"
+            else
+              echo "::error::Slack通知失败: HTTP $SLACK_STATUS"
+            fi
+          else
+            echo "⚠️ Slack Webhook未配置"
+          fi
+
+  # 性能监控验证
+  performance-monitoring-verification:
+    name: ⚡ Performance Monitoring Verification
+    runs-on: ubuntu-latest
+    needs: health-check-verification
+    if: github.event.inputs.verification_type != 'health-only' && github.event.inputs.verification_type != 'alerts-only'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Playwright
+        working-directory: zinses-rechner-frontend
+        run: |
+          npm ci
+          npx playwright install chromium
+
+      - name: Run performance monitoring tests
+        working-directory: zinses-rechner-frontend
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ needs.health-check-verification.outputs.frontend-url || 'https://zinses-rechner.de' }}
+          VITE_API_BASE_URL: ${{ needs.health-check-verification.outputs.api-url || 'https://api.zinses-rechner.de' }}
+        run: |
+          echo "⚡ 运行性能监控验证测试..."
+          
+          npx playwright test tests/monitoring/monitoring-verification.spec.ts \
+            --project=chromium \
+            --reporter=html \
+            --output=../monitoring/reports/playwright
+
+      - name: Upload monitoring test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monitoring-verification-results
+          path: |
+            monitoring/reports/playwright/
+            zinses-rechner-frontend/test-results/
+          retention-days: 7
+
+  # 监控验证摘要
+  monitoring-verification-summary:
+    name: 📊 Monitoring Verification Summary
+    runs-on: ubuntu-latest
+    needs: [health-check-verification, alert-rules-verification, performance-monitoring-verification]
+    if: always()
+    
+    steps:
+      - name: Generate monitoring verification summary
+        run: |
+          echo "# 🔍 Zinses-Rechner 监控系统验证报告" > monitoring-summary.md
+          echo "" >> monitoring-summary.md
+          echo "**验证时间**: $(date)" >> monitoring-summary.md
+          echo "**验证类型**: ${{ github.event.inputs.verification_type || 'scheduled' }}" >> monitoring-summary.md
+          echo "**目标环境**: ${{ github.event.inputs.target_environment || 'production' }}" >> monitoring-summary.md
+          echo "" >> monitoring-summary.md
+          
+          echo "## 验证结果摘要" >> monitoring-summary.md
+          echo "- 健康检查验证: ${{ needs.health-check-verification.result }}" >> monitoring-summary.md
+          echo "- 告警规则验证: ${{ needs.alert-rules-verification.result }}" >> monitoring-summary.md
+          echo "- 性能监控验证: ${{ needs.performance-monitoring-verification.result }}" >> monitoring-summary.md
+          echo "" >> monitoring-summary.md
+          
+          echo "## 监控系统状态" >> monitoring-summary.md
+          
+          # API健康状态
+          API_HEALTH="${{ needs.health-check-verification.outputs.api-health }}"
+          FRONTEND_HEALTH="${{ needs.health-check-verification.outputs.frontend-health }}"
+          RESPONSE_TIME="${{ needs.health-check-verification.outputs.response-time }}"
+          
+          echo "### 服务健康状态" >> monitoring-summary.md
+          echo "- **API服务**: $([ "$API_HEALTH" = "healthy" ] && echo "✅ 正常" || echo "❌ 异常")" >> monitoring-summary.md
+          echo "- **前端服务**: $([ "$FRONTEND_HEALTH" = "healthy" ] && echo "✅ 正常" || echo "❌ 异常")" >> monitoring-summary.md
+          echo "- **API响应时间**: ${RESPONSE_TIME}ms" >> monitoring-summary.md
+          echo "" >> monitoring-summary.md
+          
+          echo "### 监控功能状态" >> monitoring-summary.md
+          if [ "${{ needs.health-check-verification.result }}" = "success" ] && 
+             [ "${{ needs.alert-rules-verification.result }}" = "success" ] && 
+             [ "${{ needs.performance-monitoring-verification.result }}" = "success" ]; then
+            echo "🟢 **整体监控状态: 优秀**" >> monitoring-summary.md
+            echo "" >> monitoring-summary.md
+            echo "所有监控功能正常运行，告警机制工作正常。" >> monitoring-summary.md
+          elif [ "${{ needs.health-check-verification.result }}" = "success" ]; then
+            echo "🟡 **整体监控状态: 良好**" >> monitoring-summary.md
+            echo "" >> monitoring-summary.md
+            echo "基础监控功能正常，部分高级功能可能需要关注。" >> monitoring-summary.md
+          else
+            echo "🔴 **整体监控状态: 需要修复**" >> monitoring-summary.md
+            echo "" >> monitoring-summary.md
+            echo "发现监控系统问题，请立即检查和修复。" >> monitoring-summary.md
+          fi
+          
+          echo "" >> monitoring-summary.md
+          echo "## 性能指标" >> monitoring-summary.md
+          echo "- **API响应时间**: ${RESPONSE_TIME}ms $([ "$RESPONSE_TIME" -lt 1000 ] && echo "(✅ 正常)" || echo "(⚠️ 较慢)")" >> monitoring-summary.md
+          echo "- **健康检查**: $([ "$API_HEALTH" = "healthy" ] && echo "✅ 通过" || echo "❌ 失败")" >> monitoring-summary.md
+          echo "" >> monitoring-summary.md
+          
+          echo "## 建议行动" >> monitoring-summary.md
+          if [ "${{ needs.health-check-verification.result }}" != "success" ]; then
+            echo "1. 🔴 立即检查API服务状态" >> monitoring-summary.md
+          fi
+          if [ "${{ needs.alert-rules-verification.result }}" != "success" ]; then
+            echo "2. 🟡 验证告警规则配置" >> monitoring-summary.md
+          fi
+          if [ "${{ needs.performance-monitoring-verification.result }}" != "success" ]; then
+            echo "3. 🟡 检查性能监控配置" >> monitoring-summary.md
+          fi
+          if [ "$RESPONSE_TIME" -gt 1000 ]; then
+            echo "4. ⚡ 优化API响应性能" >> monitoring-summary.md
+          fi
+          
+          echo "" >> monitoring-summary.md
+          echo "## 详细报告" >> monitoring-summary.md
+          echo "- 监控验证测试: monitoring-verification-results" >> monitoring-summary.md
+          echo "- 执行日志: 见GitHub Actions工作流日志" >> monitoring-summary.md
+
+      - name: Upload monitoring summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-verification-summary
+          path: monitoring-summary.md
+
+      - name: Comment PR with monitoring results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('monitoring-summary.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+
+  # 监控故障告警
+  monitoring-failure-alert:
+    name: 🚨 Monitoring Failure Alert
+    runs-on: ubuntu-latest
+    needs: [health-check-verification, alert-rules-verification, performance-monitoring-verification]
+    if: failure()
+    
+    steps:
+      - name: Send monitoring failure alert
+        run: |
+          echo "🚨 监控系统验证发现问题！"
+          
+          # 发送Slack告警
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data '{
+                "text": "🚨 Zinses-Rechner 监控系统验证失败",
+                "attachments": [
+                  {
+                    "color": "danger",
+                    "fields": [
+                      {
+                        "title": "验证类型",
+                        "value": "${{ github.event.inputs.verification_type || 'scheduled' }}",
+                        "short": true
+                      },
+                      {
+                        "title": "环境",
+                        "value": "${{ github.event.inputs.target_environment || 'production' }}",
+                        "short": true
+                      },
+                      {
+                        "title": "分支",
+                        "value": "${{ github.ref_name }}",
+                        "short": true
+                      },
+                      {
+                        "title": "失败组件",
+                        "value": "健康检查: ${{ needs.health-check-verification.result }}, 告警规则: ${{ needs.alert-rules-verification.result }}, 性能监控: ${{ needs.performance-monitoring-verification.result }}",
+                        "short": false
+                      }
+                    ],
+                    "footer": "监控验证系统",
+                    "ts": '${{ github.event.head_commit.timestamp }}'
+                  }
+                ]
+              }' \
+              ${{ secrets.SLACK_WEBHOOK_URL }}
+          fi

@@ -1,0 +1,25 @@
+@import '../styles/print.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 应用特定样式 */
+#app {
+  @apply min-h-screen;
+}
+
+/* 链接样式 */
+a {
+  @apply text-primary-600 hover:text-primary-700 transition-colors;
+}
+
+/* 全局样式重置 */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}

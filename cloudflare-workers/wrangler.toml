@@ -1,0 +1,84 @@
+# Cloudflare Workers配置文件
+# 用于部署缓存优化的边缘计算服务
+
+name = "zinses-rechner-cache"
+main = "cache-worker.js"
+compatibility_date = "2024-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# 工作器类型和资源限制
+usage_model = "standard"
+workers_dev = true
+
+# 环境配置
+[env.development]
+name = "zinses-rechner-cache-dev"
+vars = { ENVIRONMENT = "development" }
+
+[env.staging]
+name = "zinses-rechner-cache-staging"
+vars = { ENVIRONMENT = "staging" }
+routes = [
+  { pattern = "staging-api.zinses-rechner.de/*", zone_name = "zinses-rechner.de" }
+]
+
+[env.production]
+name = "zinses-rechner-cache-prod"
+vars = { ENVIRONMENT = "production" }
+routes = [
+  { pattern = "api.zinses-rechner.de/*", zone_name = "zinses-rechner.de" },
+  { pattern = "zinses-rechner.de/api/*", zone_name = "zinses-rechner.de" }
+]
+
+# KV存储配置（用于高级缓存）
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "your-kv-namespace-id"
+preview_id = "your-preview-kv-namespace-id"
+
+# 环境变量
+[vars]
+API_BASE_URL = "https://api.zinses-rechner.de"
+CACHE_TTL_CALCULATION = "300"
+CACHE_TTL_STATIC = "31536000"
+CACHE_TTL_HTML = "3600"
+TARGET_TTFB_MS = "800"
+TARGET_CACHE_HIT_RATE = "0.85"
+
+# 生产环境变量
+[env.production.vars]
+API_BASE_URL = "https://api.zinses-rechner.de"
+SENTRY_DSN = "your-sentry-dsn"
+ANALYTICS_TOKEN = "your-analytics-token"
+
+# 开发环境变量
+[env.development.vars]
+API_BASE_URL = "http://localhost:8000"
+DEBUG = "true"
+
+# 触发器配置
+[[triggers]]
+crons = ["0 */6 * * *"]  # 每6小时清理缓存统计
+
+# 资源限制
+[limits]
+cpu_ms = 50
+memory_mb = 128
+
+# 部署配置
+[build]
+command = "npm run build"
+cwd = "."
+watch_dir = "."
+
+# 开发配置
+[dev]
+ip = "127.0.0.1"
+port = 8787
+local_protocol = "http"
+upstream_protocol = "https"
+
+# 兼容性设置
+[compatibility_flags]
+nodejs_compat = true
+streams_enable_constructors = true

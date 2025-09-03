@@ -1,0 +1,342 @@
+# 监控告警系统配置
+# Zinses-Rechner生产环境监控配置
+
+monitoring:
+  enabled: true
+  collection_interval: 30  # 秒
+  retention_days: 30
+  
+  # 健康检查配置
+  health_checks:
+    api:
+      enabled: true
+      timeout: 5
+      interval: 30
+      endpoint: "http://localhost:8000/health"
+    
+    database:
+      enabled: true
+      timeout: 3
+      interval: 60
+      # 数据库连接检查
+    
+    cache:
+      enabled: true
+      timeout: 2
+      interval: 30
+      min_hit_rate: 80  # 最低命中率
+    
+    system:
+      enabled: true
+      interval: 30
+      thresholds:
+        cpu_warning: 70
+        cpu_critical: 90
+        memory_warning: 70
+        memory_critical: 90
+        disk_warning: 80
+        disk_critical: 95
+
+  # 指标收集配置
+  metrics:
+    system_metrics:
+      enabled: true
+      interval: 30
+      include:
+        - cpu_usage
+        - memory_usage
+        - disk_usage
+        - network_io
+        - process_count
+    
+    api_metrics:
+      enabled: true
+      interval: 60
+      include:
+        - response_time
+        - request_count
+        - error_rate
+        - cache_hit_rate
+        - active_connections
+    
+    business_metrics:
+      enabled: true
+      interval: 300  # 5分钟
+      include:
+        - calculations_per_hour
+        - unique_visitors
+        - conversion_rate
+        - user_engagement
+
+# 告警规则配置
+alerts:
+  enabled: true
+  
+  # 告警规则
+  rules:
+    # API性能告警
+    - name: "API Response Time High"
+      metric: "api.response_time"
+      threshold: 1000  # 1秒
+      comparison: "greater_than"
+      severity: "warning"
+      duration_minutes: 5
+      channels: ["log", "email"]
+      description: "API响应时间超过1秒"
+    
+    - name: "API Response Time Critical"
+      metric: "api.response_time"
+      threshold: 3000  # 3秒
+      comparison: "greater_than"
+      severity: "critical"
+      duration_minutes: 2
+      channels: ["log", "email", "slack"]
+      description: "API响应时间严重超标"
+    
+    # 错误率告警
+    - name: "Error Rate High"
+      metric: "api.error_rate"
+      threshold: 1.0  # 1%
+      comparison: "greater_than"
+      severity: "warning"
+      duration_minutes: 10
+      channels: ["log", "email"]
+      description: "API错误率超过1%"
+    
+    - name: "Error Rate Critical"
+      metric: "api.error_rate"
+      threshold: 5.0  # 5%
+      comparison: "greater_than"
+      severity: "critical"
+      duration_minutes: 5
+      channels: ["log", "email", "slack"]
+      description: "API错误率严重超标"
+    
+    # 缓存性能告警
+    - name: "Cache Hit Rate Low"
+      metric: "cache.hit_rate"
+      threshold: 80.0  # 80%
+      comparison: "less_than"
+      severity: "warning"
+      duration_minutes: 15
+      channels: ["log"]
+      description: "缓存命中率低于80%"
+    
+    - name: "Cache Hit Rate Critical"
+      metric: "cache.hit_rate"
+      threshold: 60.0  # 60%
+      comparison: "less_than"
+      severity: "error"
+      duration_minutes: 10
+      channels: ["log", "email"]
+      description: "缓存命中率严重偏低"
+    
+    # 系统资源告警
+    - name: "CPU Usage High"
+      metric: "system.cpu.usage"
+      threshold: 80.0  # 80%
+      comparison: "greater_than"
+      severity: "warning"
+      duration_minutes: 10
+      channels: ["log", "email"]
+      description: "CPU使用率超过80%"
+    
+    - name: "CPU Usage Critical"
+      metric: "system.cpu.usage"
+      threshold: 95.0  # 95%
+      comparison: "greater_than"
+      severity: "critical"
+      duration_minutes: 5
+      channels: ["log", "email", "slack"]
+      description: "CPU使用率严重超标"
+    
+    - name: "Memory Usage High"
+      metric: "system.memory.usage"
+      threshold: 80.0  # 80%
+      comparison: "greater_than"
+      severity: "warning"
+      duration_minutes: 10
+      channels: ["log", "email"]
+      description: "内存使用率超过80%"
+    
+    - name: "Memory Usage Critical"
+      metric: "system.memory.usage"
+      threshold: 95.0  # 95%
+      comparison: "greater_than"
+      severity: "critical"
+      duration_minutes: 5
+      channels: ["log", "email", "slack"]
+      description: "内存使用率严重超标"
+    
+    - name: "Disk Usage High"
+      metric: "system.disk.usage"
+      threshold: 85.0  # 85%
+      comparison: "greater_than"
+      severity: "warning"
+      duration_minutes: 30
+      channels: ["log", "email"]
+      description: "磁盘使用率超过85%"
+    
+    - name: "Disk Usage Critical"
+      metric: "system.disk.usage"
+      threshold: 95.0  # 95%
+      comparison: "greater_than"
+      severity: "critical"
+      duration_minutes: 10
+      channels: ["log", "email", "slack"]
+      description: "磁盘空间严重不足"
+    
+    # 可用性告警
+    - name: "Service Unavailable"
+      metric: "service.availability"
+      threshold: 99.0  # 99%
+      comparison: "less_than"
+      severity: "critical"
+      duration_minutes: 1
+      channels: ["log", "email", "slack"]
+      description: "服务可用性低于99%"
+
+# 通知配置
+notifications:
+  enabled: true
+  
+  # 邮件配置
+  email:
+    enabled: true
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    username: "alerts@zinses-rechner.de"
+    password_env: "SMTP_PASSWORD"
+    from_address: "alerts@zinses-rechner.de"
+    recipients:
+      default: ["admin@zinses-rechner.de"]
+      critical: ["admin@zinses-rechner.de", "oncall@zinses-rechner.de"]
+      escalation: ["cto@zinses-rechner.de"]
+  
+  # Slack配置
+  slack:
+    enabled: true
+    webhook_url_env: "SLACK_WEBHOOK_URL"
+    channel: "#alerts"
+    username: "Zinses-Rechner Monitor"
+    icon_emoji: ":warning:"
+  
+  # 升级配置
+  escalation:
+    enabled: true
+    rules:
+      warning:
+        delay_minutes: 15
+        max_escalations: 2
+        escalation_channels: ["email", "slack"]
+      error:
+        delay_minutes: 10
+        max_escalations: 3
+        escalation_channels: ["email", "slack"]
+      critical:
+        delay_minutes: 5
+        max_escalations: 5
+        escalation_channels: ["email", "slack", "sms"]
+  
+  # 抑制配置
+  suppression:
+    same_alert_minutes: 30
+    max_alerts_per_hour: 20
+    quiet_hours:
+      enabled: true
+      start: 22  # 22:00
+      end: 8     # 08:00
+      timezone: "Europe/Berlin"
+      exceptions: ["critical"]  # 严重告警不受静默时间影响
+
+# 仪表盘配置
+dashboard:
+  enabled: true
+  refresh_interval: 30  # 秒
+  
+  # 显示配置
+  display:
+    max_alerts_shown: 10
+    max_metrics_history: 100
+    chart_time_range: 24  # 小时
+  
+  # 性能目标
+  targets:
+    api_response_time: 500    # ms
+    cache_hit_rate: 85        # %
+    error_rate: 0.1           # %
+    availability: 99.9        # %
+    cpu_usage: 80             # %
+    memory_usage: 80          # %
+    disk_usage: 90            # %
+
+# 集成配置
+integrations:
+  # Cloudflare监控
+  cloudflare:
+    enabled: true
+    health_check_url: "https://api.zinses-rechner.de/health"
+    check_interval: 60  # 秒
+    regions: ["FRA", "MUC", "DUS", "AMS", "LHR"]
+  
+  # Google Analytics
+  google_analytics:
+    enabled: true
+    measurement_id: "GA_MEASUREMENT_ID"
+    custom_events:
+      - alert_triggered
+      - performance_degraded
+      - system_recovery
+  
+  # 外部监控服务
+  external_monitoring:
+    enabled: false
+    providers:
+      - name: "UptimeRobot"
+        api_key_env: "UPTIMEROBOT_API_KEY"
+        monitors: []
+      
+      - name: "Pingdom"
+        api_key_env: "PINGDOM_API_KEY"
+        checks: []
+
+# 日志配置
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # 日志输出
+  handlers:
+    console:
+      enabled: true
+      level: "INFO"
+    
+    file:
+      enabled: true
+      level: "WARNING"
+      filename: "/var/log/zinses-rechner/monitoring.log"
+      max_size_mb: 100
+      backup_count: 5
+    
+    syslog:
+      enabled: false
+      facility: "local0"
+      address: ["localhost", 514]
+
+# 安全配置
+security:
+  monitoring_api:
+    enabled: true
+    require_auth: false  # 内部监控，可选择启用认证
+    allowed_ips: ["127.0.0.1", "::1"]
+    rate_limit: 100  # 请求/分钟
+  
+  data_retention:
+    metrics_days: 30
+    alerts_days: 90
+    logs_days: 365
+    
+  anonymization:
+    enabled: true
+    hash_ips: true
+    remove_user_agents: true

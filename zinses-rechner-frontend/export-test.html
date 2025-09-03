@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>导出功能测试 - Zinseszins-Rechner</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2563eb;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-data {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .export-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .export-btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .export-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .csv-btn {
+            background: #10b981;
+            color: white;
+        }
+        .excel-btn {
+            background: #3b82f6;
+            color: white;
+        }
+        .pdf-btn {
+            background: #ef4444;
+            color: white;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: 600;
+        }
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        .loading {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Zinseszins-Rechner Export Test</h1>
+        
+        <div class="test-data">
+            <h3>📊 Test-Berechnungsdaten:</h3>
+            <ul>
+                <li><strong>Startkapital:</strong> 10.000 €</li>
+                <li><strong>Monatliche Sparrate:</strong> 500 €</li>
+                <li><strong>Zinssatz:</strong> 4,0 %</li>
+                <li><strong>Laufzeit:</strong> 10 Jahre</li>
+                <li><strong>Endkapital:</strong> 75.624 €</li>
+                <li><strong>Zinserträge:</strong> 5.624 €</li>
+            </ul>
+        </div>
+
+        <div class="export-buttons">
+            <button class="export-btn csv-btn" onclick="exportToCSV()">
+                📊 CSV Export
+            </button>
+            <button class="export-btn excel-btn" onclick="exportToExcel()">
+                📈 Excel Export
+            </button>
+            <button class="export-btn pdf-btn" onclick="exportToPDF()">
+                📄 PDF Bericht
+            </button>
+        </div>
+
+        <div id="status" class="status" style="display: none;"></div>
+    </div>
+
+    <script>
+        // 测试数据
+        const testData = {
+            form: {
+                principal: 10000,
+                monthlyPayment: 500,
+                annualRate: 4.0,
+                years: 10,
+                compoundFrequency: 'monthly'
+            },
+            result: {
+                finalAmount: 75624.32,
+                totalContributions: 70000,
+                totalInterest: 5624.32,
+                annualReturn: 4.2,
+                yearlyBreakdown: [
+                    { year: 1, startAmount: 10000, contributions: 6000, interest: 420, endAmount: 16420, growth: 4.2 },
+                    { year: 2, startAmount: 16420, contributions: 6000, interest: 689, endAmount: 23109, growth: 4.2 },
+                    { year: 3, startAmount: 23109, contributions: 6000, interest: 971, endAmount: 30080, growth: 4.2 },
+                    { year: 4, startAmount: 30080, contributions: 6000, interest: 1263, endAmount: 37343, growth: 4.2 },
+                    { year: 5, startAmount: 37343, contributions: 6000, interest: 1568, endAmount: 44911, growth: 4.2 },
+                    { year: 6, startAmount: 44911, contributions: 6000, interest: 1886, endAmount: 52797, growth: 4.2 },
+                    { year: 7, startAmount: 52797, contributions: 6000, interest: 2217, endAmount: 61014, growth: 4.2 },
+                    { year: 8, startAmount: 61014, contributions: 6000, interest: 2563, endAmount: 69577, growth: 4.2 },
+                    { year: 9, startAmount: 69577, contributions: 6000, interest: 2924, endAmount: 78501, growth: 4.2 },
+                    { year: 10, startAmount: 78501, contributions: 6000, interest: 3301, endAmount: 87802, growth: 4.2 }
+                ]
+            }
+        };
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    status.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('de-DE', {
+                style: 'currency',
+                currency: 'EUR',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(amount);
+        }
+
+        function formatPercentage(value) {
+            return new Intl.NumberFormat('de-DE', {
+                style: 'percent',
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1
+            }).format(value / 100);
+        }
+
+        function generateFileName(type) {
+            const timestamp = new Date().toISOString().slice(0, 10);
+            const principal = Math.round(testData.form.principal / 1000);
+            const years = testData.form.years;
+            return `Zinseszins-Berechnung_${principal}k-EUR_${years}Jahre_${timestamp}.${type}`;
+        }
+
+        function exportToCSV() {
+            try {
+                showStatus('CSV wird erstellt...', 'loading');
+                
+                // 创建CSV内容
+                let csvContent = '\uFEFF'; // BOM for UTF-8
+                
+                // 添加摘要信息
+                csvContent += 'ZINSESZINS-BERECHNUNG ÜBERSICHT\n\n';
+                csvContent += `"Startkapital","${formatCurrency(testData.form.principal)}"\n`;
+                csvContent += `"Monatliche Sparrate","${formatCurrency(testData.form.monthlyPayment)}"\n`;
+                csvContent += `"Zinssatz","${formatPercentage(testData.form.annualRate)}"\n`;
+                csvContent += `"Laufzeit","${testData.form.years} Jahre"\n`;
+                csvContent += `"Endkapital","${formatCurrency(testData.result.finalAmount)}"\n`;
+                csvContent += `"Eingezahlt gesamt","${formatCurrency(testData.result.totalContributions)}"\n`;
+                csvContent += `"Zinserträge","${formatCurrency(testData.result.totalInterest)}"\n`;
+                csvContent += `"Berechnet am","${new Date().toLocaleDateString('de-DE')}"\n`;
+                
+                csvContent += '\n\nJÄHRLICHE ENTWICKLUNG\n\n';
+                csvContent += '"Jahr","Startbetrag","Einzahlungen","Zinserträge","Endbetrag","Wachstum"\n';
+                
+                testData.result.yearlyBreakdown.forEach(row => {
+                    csvContent += `"${row.year}","${formatCurrency(row.startAmount)}","${formatCurrency(row.contributions)}","${formatCurrency(row.interest)}","${formatCurrency(row.endAmount)}","${formatPercentage(row.growth)}"\n`;
+                });
+                
+                // 下载文件
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+                const fileName = generateFileName('csv');
+                saveAs(blob, fileName);
+                
+                showStatus('✅ CSV erfolgreich heruntergeladen!', 'success');
+                
+            } catch (error) {
+                console.error('CSV导出失败:', error);
+                showStatus('❌ CSV导出失败. Bitte versuchen Sie es erneut.', 'error');
+            }
+        }
+
+        function exportToExcel() {
+            try {
+                showStatus('Excel wird erstellt...', 'loading');
+                
+                // 创建工作簿
+                const workbook = XLSX.utils.book_new();
+                
+                // 工作表1: 概览
+                const summaryData = [
+                    ['Parameter', 'Wert'],
+                    ['Startkapital', formatCurrency(testData.form.principal)],
+                    ['Monatliche Sparrate', formatCurrency(testData.form.monthlyPayment)],
+                    ['Zinssatz', formatPercentage(testData.form.annualRate)],
+                    ['Laufzeit', `${testData.form.years} Jahre`],
+                    ['Endkapital', formatCurrency(testData.result.finalAmount)],
+                    ['Eingezahlt gesamt', formatCurrency(testData.result.totalContributions)],
+                    ['Zinserträge', formatCurrency(testData.result.totalInterest)],
+                    ['Berechnet am', new Date().toLocaleDateString('de-DE')]
+                ];
+                
+                const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+                summarySheet['!cols'] = [{ width: 25 }, { width: 20 }];
+                XLSX.utils.book_append_sheet(workbook, summarySheet, 'Übersicht');
+                
+                // 工作表2: 年度明细
+                const yearlyData = [
+                    ['Jahr', 'Startbetrag', 'Einzahlungen', 'Zinserträge', 'Endbetrag', 'Wachstum']
+                ];
+                
+                testData.result.yearlyBreakdown.forEach(row => {
+                    yearlyData.push([
+                        row.year,
+                        formatCurrency(row.startAmount),
+                        formatCurrency(row.contributions),
+                        formatCurrency(row.interest),
+                        formatCurrency(row.endAmount),
+                        formatPercentage(row.growth)
+                    ]);
+                });
+                
+                const yearlySheet = XLSX.utils.aoa_to_sheet(yearlyData);
+                yearlySheet['!cols'] = [
+                    { width: 8 },   // Jahr
+                    { width: 15 },  // Startbetrag
+                    { width: 15 },  // Einzahlungen
+                    { width: 15 },  // Zinserträge
+                    { width: 15 },  // Endbetrag
+                    { width: 12 }   // Wachstum
+                ];
+                XLSX.utils.book_append_sheet(workbook, yearlySheet, 'Jährliche Entwicklung');
+                
+                // 导出文件
+                const fileName = generateFileName('xlsx');
+                XLSX.writeFile(workbook, fileName);
+                
+                showStatus('✅ Excel erfolgreich heruntergeladen!', 'success');
+                
+            } catch (error) {
+                console.error('Excel导出失败:', error);
+                showStatus('❌ Excel导出失败. Bitte versuchen Sie es erneut.', 'error');
+            }
+        }
+
+        function exportToPDF() {
+            try {
+                showStatus('PDF wird erstellt...', 'loading');
+                
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                let yPosition = 20;
+                
+                // 标题
+                pdf.setFontSize(20);
+                pdf.setFont('helvetica', 'bold');
+                pdf.text('Zinseszins-Berechnung', pageWidth / 2, yPosition, { align: 'center' });
+                yPosition += 15;
+                
+                // 副标题
+                pdf.setFontSize(12);
+                pdf.setFont('helvetica', 'normal');
+                pdf.text(`Erstellt am ${new Date().toLocaleDateString('de-DE')}`, pageWidth / 2, yPosition, { align: 'center' });
+                yPosition += 20;
+                
+                // 摘要表格
+                pdf.setFontSize(14);
+                pdf.setFont('helvetica', 'bold');
+                pdf.text('Berechnungsübersicht', 20, yPosition);
+                yPosition += 10;
+                
+                pdf.setFontSize(10);
+                pdf.setFont('helvetica', 'normal');
+                
+                const summaryItems = [
+                    ['Startkapital:', formatCurrency(testData.form.principal)],
+                    ['Monatliche Sparrate:', formatCurrency(testData.form.monthlyPayment)],
+                    ['Zinssatz:', formatPercentage(testData.form.annualRate)],
+                    ['Laufzeit:', `${testData.form.years} Jahre`],
+                    ['Endkapital:', formatCurrency(testData.result.finalAmount)],
+                    ['Eingezahlt gesamt:', formatCurrency(testData.result.totalContributions)],
+                    ['Zinserträge:', formatCurrency(testData.result.totalInterest)]
+                ];
+                
+                summaryItems.forEach(([key, value]) => {
+                    pdf.text(key, 20, yPosition);
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.text(value, 100, yPosition);
+                    pdf.setFont('helvetica', 'normal');
+                    yPosition += 7;
+                });
+                
+                // 年度明细表格
+                yPosition += 10;
+                pdf.setFontSize(14);
+                pdf.setFont('helvetica', 'bold');
+                pdf.text('Jährliche Entwicklung', 20, yPosition);
+                yPosition += 10;
+                
+                // 表头
+                pdf.setFontSize(8);
+                pdf.setFont('helvetica', 'bold');
+                const headers = ['Jahr', 'Startbetrag', 'Einzahlungen', 'Zinsen', 'Endbetrag'];
+                const colWidths = [20, 30, 30, 30, 30];
+                let xPos = 20;
+                
+                headers.forEach((header, i) => {
+                    pdf.text(header, xPos, yPosition);
+                    xPos += colWidths[i];
+                });
+                yPosition += 7;
+                
+                // 数据行
+                pdf.setFont('helvetica', 'normal');
+                testData.result.yearlyBreakdown.slice(0, 15).forEach(year => { // 限制显示前15年
+                    xPos = 20;
+                    const values = [
+                        year.year.toString(),
+                        formatCurrency(year.startAmount),
+                        formatCurrency(year.contributions),
+                        formatCurrency(year.interest),
+                        formatCurrency(year.endAmount)
+                    ];
+                    
+                    values.forEach((value, i) => {
+                        pdf.text(value, xPos, yPosition);
+                        xPos += colWidths[i];
+                    });
+                    yPosition += 6;
+                });
+                
+                // 免责声明
+                yPosition += 15;
+                pdf.setFontSize(8);
+                pdf.setFont('helvetica', 'italic');
+                const disclaimer = 'Haftungsausschluss: Diese Berechnung dient nur zu Informationszwecken. ' +
+                    'Tatsächliche Ergebnisse können aufgrund von Marktbedingungen, Gebühren und Steuern abweichen. ' +
+                    'Konsultieren Sie einen Finanzberater für professionelle Beratung.';
+                
+                const disclaimerLines = pdf.splitTextToSize(disclaimer, pageWidth - 40);
+                pdf.text(disclaimerLines, 20, yPosition);
+                
+                // 保存PDF
+                const fileName = generateFileName('pdf');
+                pdf.save(fileName);
+                
+                showStatus('✅ PDF erfolgreich heruntergeladen!', 'success');
+                
+            } catch (error) {
+                console.error('PDF导出失败:', error);
+                showStatus('❌ PDF导出失败. Bitte versuchen Sie es erneut.', 'error');
+            }
+        }
+    </script>
+</body>
+</html>

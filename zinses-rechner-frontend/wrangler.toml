@@ -1,0 +1,31 @@
+# Cloudflare Pages配置文件
+# Zinses-Rechner前端部署配置
+
+name = "zinses-rechner"
+compatibility_date = "2024-01-15"
+pages_build_output_dir = "dist"
+
+# Pages项目配置
+[env.production]
+name = "zinses-rechner"
+compatibility_date = "2024-01-15"
+pages_build_output_dir = "dist"
+
+
+
+# 环境变量
+[env.production.vars]
+NODE_ENV = "production"
+VITE_APP_ENVIRONMENT = "production"
+
+# 预览环境配置
+[env.preview]
+name = "zinses-rechner-preview"
+compatibility_date = "2024-01-15"
+pages_build_output_dir = "dist"
+
+[env.preview.vars]
+NODE_ENV = "preview"
+VITE_APP_ENVIRONMENT = "preview"
+
+

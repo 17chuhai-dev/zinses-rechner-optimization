@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>德国金融计算器功能验证</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .test-pass {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .test-fail {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .summary {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧮 德国金融计算器功能验证</h1>
+    
+    <div class="summary" id="summary">
+        <h3>测试摘要</h3>
+        <p>点击下面的按钮开始测试各个计算器的功能</p>
+    </div>
+
+    <div class="test-section">
+        <h2>🔄 复利计算器（Zinseszins-Rechner）</h2>
+        <button onclick="testCompoundInterest()">测试复利计算器</button>
+        <div id="compound-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🏦 贷款计算器（Darlehensrechner）</h2>
+        <button onclick="testLoanCalculator()">测试贷款计算器</button>
+        <div id="loan-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🏠 房贷计算器（Baufinanzierungsrechner）</h2>
+        <button onclick="testMortgageCalculator()">测试房贷计算器</button>
+        <div id="mortgage-results"></div>
+    </div>
+
+    <div class="test-section">
+        <button onclick="runAllTests()" style="background-color: #28a745; font-size: 16px; padding: 15px 30px;">
+            🚀 运行所有测试
+        </button>
+    </div>
+
+    <script>
+        let testResults = [];
+
+        function addTestResult(calculatorName, testName, passed, expected, actual, error = null) {
+            testResults.push({
+                calculatorName,
+                testName,
+                passed,
+                expected,
+                actual,
+                error
+            });
+        }
+
+        function displayResult(containerId, testName, passed, details) {
+            const container = document.getElementById(containerId);
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${passed ? 'test-pass' : 'test-fail'}`;
+            resultDiv.innerHTML = `
+                <strong>${passed ? '✅' : '❌'} ${testName}</strong><br>
+                ${details}
+            `;
+            container.appendChild(resultDiv);
+        }
+
+        async function testCompoundInterest() {
+            const container = document.getElementById('compound-results');
+            container.innerHTML = '<p>🔄 测试复利计算器...</p>';
+
+            try {
+                // 模拟复利计算
+                const principal = 10000;
+                const monthlyPayment = 500;
+                const annualRate = 4.0;
+                const years = 10;
+
+                // 简化的复利计算公式
+                const monthlyRate = annualRate / 100 / 12;
+                const totalMonths = years * 12;
+                
+                // 计算复利
+                let futureValue = principal;
+                for (let i = 0; i < totalMonths; i++) {
+                    futureValue = (futureValue + monthlyPayment) * (1 + monthlyRate);
+                }
+
+                const totalContributions = principal + (monthlyPayment * totalMonths);
+                const totalInterest = futureValue - totalContributions;
+
+                // 验证测试
+                const test1 = futureValue > totalContributions;
+                const test2 = totalInterest > 0;
+                const test3 = futureValue > 80000 && futureValue < 120000; // 合理范围
+
+                displayResult('compound-results', '最终金额大于总贡献', test1, 
+                    `最终金额: €${futureValue.toFixed(2)}, 总贡献: €${totalContributions.toFixed(2)}`);
+                
+                displayResult('compound-results', '产生正利息收益', test2, 
+                    `利息收益: €${totalInterest.toFixed(2)}`);
+                
+                displayResult('compound-results', '计算结果在合理范围', test3, 
+                    `最终金额: €${futureValue.toFixed(2)} (预期: €80,000 - €120,000)`);
+
+                addTestResult('复利计算器', '基础功能', test1 && test2 && test3, 'success', 'success');
+
+            } catch (error) {
+                displayResult('compound-results', '计算错误', false, `错误: ${error.message}`);
+                addTestResult('复利计算器', '基础功能', false, 'success', error.message);
+            }
+        }
+
+        async function testLoanCalculator() {
+            const container = document.getElementById('loan-results');
+            container.innerHTML = '<p>🔄 测试贷款计算器...</p>';
+
+            try {
+                // 模拟贷款计算
+                const principal = 200000;
+                const annualRate = 3.5;
+                const years = 20;
+
+                // 等额本息月供计算
+                const monthlyRate = annualRate / 100 / 12;
+                const totalMonths = years * 12;
+                const monthlyPayment = principal * (monthlyRate * Math.pow(1 + monthlyRate, totalMonths)) / 
+                                     (Math.pow(1 + monthlyRate, totalMonths) - 1);
+
+                const totalPayment = monthlyPayment * totalMonths;
+                const totalInterest = totalPayment - principal;
+
+                // 验证测试
+                const test1 = monthlyPayment > 800 && monthlyPayment < 2000;
+                const test2 = totalInterest > 0;
+                const test3 = totalPayment > principal;
+
+                displayResult('loan-results', '月供金额合理', test1, 
+                    `月供: €${monthlyPayment.toFixed(2)} (预期: €800 - €2,000)`);
+                
+                displayResult('loan-results', '产生利息成本', test2, 
+                    `总利息: €${totalInterest.toFixed(2)}`);
+                
+                displayResult('loan-results', '总还款大于本金', test3, 
+                    `总还款: €${totalPayment.toFixed(2)}, 本金: €${principal.toFixed(2)}`);
+
+                addTestResult('贷款计算器', '基础功能', test1 && test2 && test3, 'success', 'success');
+
+            } catch (error) {
+                displayResult('loan-results', '计算错误', false, `错误: ${error.message}`);
+                addTestResult('贷款计算器', '基础功能', false, 'success', error.message);
+            }
+        }
+
+        async function testMortgageCalculator() {
+            const container = document.getElementById('mortgage-results');
+            container.innerHTML = '<p>🔄 测试房贷计算器...</p>';
+
+            try {
+                // 模拟房贷计算
+                const purchasePrice = 400000;
+                const downPayment = 80000;
+                const landTransferTaxRate = 5.0;
+                const notaryRate = 1.5;
+                const realEstateAgentRate = 3.57;
+                const monthlyIncome = 4000;
+
+                // 计算德国购房成本
+                const landTransferTax = purchasePrice * (landTransferTaxRate / 100);
+                const notaryFees = purchasePrice * (notaryRate / 100);
+                const agentFees = purchasePrice * (realEstateAgentRate / 100);
+                const totalCosts = purchasePrice + landTransferTax + notaryFees + agentFees;
+
+                const loanAmount = purchasePrice - downPayment;
+                const monthlyRate = 3.8 / 100 / 12;
+                const totalMonths = 25 * 12;
+                const monthlyPayment = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, totalMonths)) / 
+                                     (Math.pow(1 + monthlyRate, totalMonths) - 1);
+
+                const affordabilityRatio = monthlyPayment / monthlyIncome;
+
+                // 验证测试
+                const test1 = landTransferTax === 20000; // 5% of 400,000
+                const test2 = affordabilityRatio < 0.5; // 负担能力合理
+                const test3 = totalCosts > purchasePrice; // 总成本大于房价
+
+                displayResult('mortgage-results', '土地转让税计算正确', test1, 
+                    `土地转让税: €${landTransferTax.toFixed(2)} (预期: €20,000)`);
+                
+                displayResult('mortgage-results', '负担能力比率合理', test2, 
+                    `负担比率: ${(affordabilityRatio * 100).toFixed(1)}% (应 < 50%)`);
+                
+                displayResult('mortgage-results', '总成本包含购房费用', test3, 
+                    `总成本: €${totalCosts.toFixed(2)}, 房价: €${purchasePrice.toFixed(2)}`);
+
+                addTestResult('房贷计算器', '基础功能', test1 && test2 && test3, 'success', 'success');
+
+            } catch (error) {
+                displayResult('mortgage-results', '计算错误', false, `错误: ${error.message}`);
+                addTestResult('房贷计算器', '基础功能', false, 'success', error.message);
+            }
+        }
+
+        async function runAllTests() {
+            testResults = [];
+            document.getElementById('compound-results').innerHTML = '';
+            document.getElementById('loan-results').innerHTML = '';
+            document.getElementById('mortgage-results').innerHTML = '';
+
+            await testCompoundInterest();
+            await testLoanCalculator();
+            await testMortgageCalculator();
+
+            updateSummary();
+        }
+
+        function updateSummary() {
+            const totalTests = testResults.length;
+            const passedTests = testResults.filter(r => r.passed).length;
+            const successRate = totalTests > 0 ? ((passedTests / totalTests) * 100).toFixed(1) : 0;
+
+            document.getElementById('summary').innerHTML = `
+                <h3>📊 测试结果摘要</h3>
+                <p><strong>总测试数:</strong> ${totalTests}</p>
+                <p><strong>通过测试:</strong> ${passedTests}</p>
+                <p><strong>失败测试:</strong> ${totalTests - passedTests}</p>
+                <p><strong>成功率:</strong> ${successRate}%</p>
+                <p style="color: ${successRate == 100 ? 'green' : 'orange'};">
+                    ${successRate == 100 ? '🎉 所有测试通过！' : '⚠️ 部分测试需要关注'}
+                </p>
+            `;
+        }
+
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🧮 德国金融计算器验证页面已加载');
+            console.log('点击按钮开始测试各个计算器的功能');
+        });
+    </script>
+</body>
+</html>

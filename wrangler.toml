@@ -1,0 +1,71 @@
+# Cloudflare Pages配置文件
+# 德国复利计算器部署配置
+
+name = "zinses-rechner"
+compatibility_date = "2024-01-15"
+
+# Pages配置
+[env.production]
+name = "zinses-rechner"
+route = "zinses-rechner.de/*"
+
+[env.staging]
+name = "zinses-rechner-staging"
+route = "staging.zinses-rechner.de/*"
+
+# 构建配置
+[build]
+command = "npm run build"
+cwd = "zinses-rechner-frontend"
+destination = "dist"
+
+# 环境变量
+[vars]
+ENVIRONMENT = "production"
+VITE_API_BASE_URL = "https://api.zinses-rechner.de"
+
+# 缓存配置
+[[rules]]
+action = "cache"
+path = "/assets/*"
+cache_level = "cache_everything"
+edge_cache_ttl = 31536000  # 1年
+
+[[rules]]
+action = "cache"
+path = "*.js"
+cache_level = "cache_everything"
+edge_cache_ttl = 31536000
+
+[[rules]]
+action = "cache"
+path = "*.css"
+cache_level = "cache_everything"
+edge_cache_ttl = 31536000
+
+[[rules]]
+action = "cache"
+path = "*.woff2"
+cache_level = "cache_everything"
+edge_cache_ttl = 31536000
+
+# HTML缓存（较短时间，便于更新）
+[[rules]]
+action = "cache"
+path = "*.html"
+cache_level = "cache_everything"
+edge_cache_ttl = 3600  # 1小时
+
+# 安全头配置
+[headers]
+"/*" = [
+  { name = "X-Frame-Options", value = "DENY" },
+  { name = "X-Content-Type-Options", value = "nosniff" },
+  { name = "Referrer-Policy", value = "strict-origin-when-cross-origin" },
+  { name = "Permissions-Policy", value = "camera=(), microphone=(), geolocation=()" }
+]
+
+# CSP配置
+"/index.html" = [
+  { name = "Content-Security-Policy", value = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.zinses-rechner.de" }
+]

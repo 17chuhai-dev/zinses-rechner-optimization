@@ -1,0 +1,242 @@
+# Docker Compose 配置
+# 德国利息计算器完整部署配置
+
+version: '3.8'
+
+# ================================
+# 服务定义
+# ================================
+services:
+  # 前端应用
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      args:
+        - NODE_ENV=production
+        - VITE_APP_VERSION=${APP_VERSION:-1.0.0}
+        - VITE_API_BASE_URL=${API_BASE_URL:-http://localhost:3000}
+        - VITE_ECB_API_URL=${ECB_API_URL:-https://api.ecb.europa.eu}
+        - VITE_BUNDESBANK_API_URL=${BUNDESBANK_API_URL:-https://api.bundesbank.de}
+        - VITE_YAHOO_API_URL=${YAHOO_API_URL:-https://query1.finance.yahoo.com}
+        - VITE_FIXER_API_URL=${FIXER_API_URL:-https://api.fixer.io}
+        - SKIP_TESTS=${SKIP_TESTS:-false}
+    image: zinses-rechner:${APP_VERSION:-latest}
+    container_name: zinses-rechner-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+      - "${FRONTEND_SSL_PORT:-443}:443"
+    environment:
+      - NODE_ENV=production
+      - TZ=Europe/Berlin
+      - NGINX_WORKER_PROCESSES=${NGINX_WORKER_PROCESSES:-auto}
+      - NGINX_WORKER_CONNECTIONS=${NGINX_WORKER_CONNECTIONS:-1024}
+      - SSL_ENABLED=${SSL_ENABLED:-false}
+      - SECURITY_HEADERS_ENABLED=${SECURITY_HEADERS_ENABLED:-true}
+      - API_PROXY_ENABLED=${API_PROXY_ENABLED:-false}
+      - API_BACKEND_URL=http://backend:3000
+    volumes:
+      # SSL证书（如果使用）
+      - ${SSL_CERT_PATH:-./ssl}:/etc/nginx/ssl:ro
+      # 自定义nginx配置（可选）
+      - ${NGINX_CONF_PATH:-./docker/nginx.conf}:/etc/nginx/nginx.conf:ro
+      # 日志目录
+      - nginx_logs:/var/log/nginx
+      # 缓存目录
+      - nginx_cache:/var/cache/nginx
+    networks:
+      - zinses_network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+
+  # 后端API（示例）
+  backend:
+    image: node:18-alpine
+    container_name: zinses-rechner-backend
+    restart: unless-stopped
+    working_dir: /app
+    command: ["node", "server.js"]
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - TZ=Europe/Berlin
+      - PORT=3000
+      - DATABASE_URL=${DATABASE_URL:-postgresql://user:pass@db:5432/zinses_rechner}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret}
+      - ECB_API_KEY=${ECB_API_KEY}
+      - BUNDESBANK_API_KEY=${BUNDESBANK_API_KEY}
+      - YAHOO_API_KEY=${YAHOO_API_KEY}
+      - FIXER_API_KEY=${FIXER_API_KEY}
+    volumes:
+      - ./backend:/app:ro
+      - backend_logs:/app/logs
+    networks:
+      - zinses_network
+    depends_on:
+      - db
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 数据库
+  db:
+    image: postgres:15-alpine
+    container_name: zinses-rechner-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${DB_NAME:-zinses_rechner}
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+      - TZ=Europe/Berlin
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - zinses_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: zinses-rechner-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis}
+    environment:
+      - TZ=Europe/Berlin
+    volumes:
+      - redis_data:/data
+    networks:
+      - zinses_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 反向代理（可选）
+  traefik:
+    image: traefik:v3.0
+    container_name: zinses-rechner-traefik
+    restart: unless-stopped
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@example.com}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+    networks:
+      - zinses_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.traefik.service=api@internal"
+    profiles:
+      - traefik
+
+  # 监控服务
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: zinses-rechner-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - zinses_network
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: zinses-rechner-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - zinses_network
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+
+# ================================
+# 网络配置
+# ================================
+networks:
+  zinses_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ================================
+# 数据卷配置
+# ================================
+volumes:
+  # 应用数据
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  
+  # 日志数据
+  nginx_logs:
+    driver: local
+  backend_logs:
+    driver: local
+  
+  # 缓存数据
+  nginx_cache:
+    driver: local
+  
+  # SSL证书
+  traefik_letsencrypt:
+    driver: local
+  
+  # 监控数据
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local

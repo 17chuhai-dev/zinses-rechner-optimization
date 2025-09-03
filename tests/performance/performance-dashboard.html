@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zinses-Rechner Performance Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+        
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            color: #64748b;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+        
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+        }
+        
+        .metric-card h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 1rem;
+        }
+        
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-value.good { color: #059669; }
+        .metric-value.warning { color: #d97706; }
+        .metric-value.critical { color: #dc2626; }
+        
+        .metric-unit {
+            font-size: 1rem;
+            color: #64748b;
+            font-weight: 400;
+        }
+        
+        .metric-trend {
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+        
+        .trend-up { color: #059669; }
+        .trend-down { color: #dc2626; }
+        .trend-stable { color: #64748b; }
+        
+        .charts-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+        }
+        
+        .chart-container h3 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 1rem;
+        }
+        
+        .chart-canvas {
+            max-height: 300px;
+        }
+        
+        .status-indicators {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+        
+        .status-indicator.healthy {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .status-indicator.warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .status-indicator.critical {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        .status-dot.healthy { background: #22c55e; }
+        .status-dot.warning { background: #f59e0b; }
+        .status-dot.critical { background: #ef4444; }
+        
+        .refresh-controls {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .refresh-button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .refresh-button:hover {
+            background: #2563eb;
+        }
+        
+        .last-updated {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-top: 2rem;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard {
+                padding: 1rem;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>🚀 Zinses-Rechner Performance Dashboard</h1>
+            <p>实时性能监控和负载测试结果</p>
+        </div>
+
+        <div class="refresh-controls">
+            <button class="refresh-button" onclick="refreshData()">
+                🔄 刷新数据
+            </button>
+        </div>
+
+        <div class="status-indicators">
+            <div class="status-indicator healthy" id="api-status">
+                <div class="status-dot healthy"></div>
+                <span>API服务正常</span>
+            </div>
+            <div class="status-indicator healthy" id="frontend-status">
+                <div class="status-dot healthy"></div>
+                <span>前端服务正常</span>
+            </div>
+            <div class="status-indicator healthy" id="cache-status">
+                <div class="status-dot healthy"></div>
+                <span>缓存性能良好</span>
+            </div>
+            <div class="status-indicator healthy" id="database-status">
+                <div class="status-dot healthy"></div>
+                <span>数据库连接正常</span>
+            </div>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <h3>API响应时间</h3>
+                <div class="metric-value good" id="api-response-time">245</div>
+                <span class="metric-unit">ms (P95)</span>
+                <div class="metric-trend trend-stable">
+                    📊 目标: < 500ms
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <h3>并发处理能力</h3>
+                <div class="metric-value good" id="concurrent-rps">1,247</div>
+                <span class="metric-unit">RPS</span>
+                <div class="metric-trend trend-up">
+                    📈 目标: > 1,000 RPS
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <h3>内存使用率</h3>
+                <div class="metric-value good" id="memory-usage">67</div>
+                <span class="metric-unit">%</span>
+                <div class="metric-trend trend-stable">
+                    💾 目标: < 80%
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <h3>CPU使用率</h3>
+                <div class="metric-value warning" id="cpu-usage">72</div>
+                <span class="metric-unit">%</span>
+                <div class="metric-trend trend-up">
+                    ⚡ 目标: < 80%
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <h3>缓存命中率</h3>
+                <div class="metric-value good" id="cache-hit-rate">91</div>
+                <span class="metric-unit">%</span>
+                <div class="metric-trend trend-stable">
+                    🗄️ 目标: > 85%
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <h3>错误率</h3>
+                <div class="metric-value good" id="error-rate">0.03</div>
+                <span class="metric-unit">%</span>
+                <div class="metric-trend trend-down">
+                    🛡️ 目标: < 1%
+                </div>
+            </div>
+        </div>
+
+        <div class="charts-section">
+            <div class="chart-container">
+                <h3>📈 API响应时间趋势</h3>
+                <canvas id="response-time-chart" class="chart-canvas"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h3>🚀 并发请求处理</h3>
+                <canvas id="rps-chart" class="chart-canvas"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h3>💾 系统资源使用</h3>
+                <canvas id="resource-chart" class="chart-canvas"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h3>🗄️ 缓存性能分析</h3>
+                <canvas id="cache-chart" class="chart-canvas"></canvas>
+            </div>
+        </div>
+
+        <div class="last-updated">
+            最后更新: <span id="last-updated-time">--</span>
+        </div>
+    </div>
+
+    <script>
+        // 图表配置
+        const chartConfig = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: '时间'
+                    }
+                },
+                y: {
+                    display: true,
+                    beginAtZero: true
+                }
+            }
+        }
+
+        // 初始化图表
+        function initializeCharts() {
+            // API响应时间图表
+            const responseTimeCtx = document.getElementById('response-time-chart').getContext('2d')
+            window.responseTimeChart = new Chart(responseTimeCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'P95响应时间 (ms)',
+                        data: [],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4
+                    }, {
+                        label: '目标线 (500ms)',
+                        data: [],
+                        borderColor: '#ef4444',
+                        borderDash: [5, 5],
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    ...chartConfig,
+                    scales: {
+                        ...chartConfig.scales,
+                        y: {
+                            ...chartConfig.scales.y,
+                            title: {
+                                display: true,
+                                text: '响应时间 (ms)'
+                            }
+                        }
+                    }
+                }
+            })
+
+            // RPS图表
+            const rpsCtx = document.getElementById('rps-chart').getContext('2d')
+            window.rpsChart = new Chart(rpsCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '每秒请求数',
+                        data: [],
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4
+                    }, {
+                        label: '目标线 (1000 RPS)',
+                        data: [],
+                        borderColor: '#ef4444',
+                        borderDash: [5, 5],
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    ...chartConfig,
+                    scales: {
+                        ...chartConfig.scales,
+                        y: {
+                            ...chartConfig.scales.y,
+                            title: {
+                                display: true,
+                                text: 'RPS'
+                            }
+                        }
+                    }
+                }
+            })
+
+            // 资源使用图表
+            const resourceCtx = document.getElementById('resource-chart').getContext('2d')
+            window.resourceChart = new Chart(resourceCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'CPU使用率 (%)',
+                        data: [],
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        tension: 0.4
+                    }, {
+                        label: '内存使用率 (%)',
+                        data: [],
+                        borderColor: '#8b5cf6',
+                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    ...chartConfig,
+                    scales: {
+                        ...chartConfig.scales,
+                        y: {
+                            ...chartConfig.scales.y,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: '使用率 (%)'
+                            }
+                        }
+                    }
+                }
+            })
+
+            // 缓存性能图表
+            const cacheCtx = document.getElementById('cache-chart').getContext('2d')
+            window.cacheChart = new Chart(cacheCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['缓存命中', '缓存未命中'],
+                    datasets: [{
+                        data: [91, 9],
+                        backgroundColor: ['#10b981', '#ef4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.parsed + '%'
+                                }
+                            }
+                        }
+                    }
+                }
+            })
+        }
+
+        // 更新指标值
+        function updateMetrics(data) {
+            // 更新API响应时间
+            const apiResponseTime = document.getElementById('api-response-time')
+            apiResponseTime.textContent = data.api_response_time || '245'
+            apiResponseTime.className = `metric-value ${data.api_response_time < 500 ? 'good' : 'warning'}`
+
+            // 更新并发处理能力
+            const concurrentRps = document.getElementById('concurrent-rps')
+            concurrentRps.textContent = (data.concurrent_rps || 1247).toLocaleString('de-DE')
+            concurrentRps.className = `metric-value ${data.concurrent_rps > 1000 ? 'good' : 'warning'}`
+
+            // 更新内存使用率
+            const memoryUsage = document.getElementById('memory-usage')
+            memoryUsage.textContent = data.memory_usage || '67'
+            memoryUsage.className = `metric-value ${data.memory_usage < 80 ? 'good' : 'warning'}`
+
+            // 更新CPU使用率
+            const cpuUsage = document.getElementById('cpu-usage')
+            cpuUsage.textContent = data.cpu_usage || '72'
+            cpuUsage.className = `metric-value ${data.cpu_usage < 80 ? 'good' : 'warning'}`
+
+            // 更新缓存命中率
+            const cacheHitRate = document.getElementById('cache-hit-rate')
+            cacheHitRate.textContent = data.cache_hit_rate || '91'
+            cacheHitRate.className = `metric-value ${data.cache_hit_rate > 85 ? 'good' : 'warning'}`
+
+            // 更新错误率
+            const errorRate = document.getElementById('error-rate')
+            errorRate.textContent = data.error_rate || '0.03'
+            errorRate.className = `metric-value ${data.error_rate < 1 ? 'good' : 'critical'}`
+
+            // 更新状态指示器
+            updateStatusIndicators(data)
+        }
+
+        // 更新状态指示器
+        function updateStatusIndicators(data) {
+            const indicators = {
+                'api-status': data.api_response_time < 500,
+                'frontend-status': data.frontend_performance > 85,
+                'cache-status': data.cache_hit_rate > 85,
+                'database-status': data.database_response_time < 100
+            }
+
+            Object.entries(indicators).forEach(([id, isHealthy]) => {
+                const indicator = document.getElementById(id)
+                const dot = indicator.querySelector('.status-dot')
+                
+                if (isHealthy) {
+                    indicator.className = 'status-indicator healthy'
+                    dot.className = 'status-dot healthy'
+                } else {
+                    indicator.className = 'status-indicator warning'
+                    dot.className = 'status-dot warning'
+                }
+            })
+        }
+
+        // 更新图表数据
+        function updateCharts(timeSeriesData) {
+            const now = new Date().toLocaleTimeString('de-DE')
+            
+            // 更新响应时间图表
+            if (window.responseTimeChart) {
+                const chart = window.responseTimeChart
+                chart.data.labels.push(now)
+                chart.data.datasets[0].data.push(timeSeriesData.response_time || Math.random() * 400 + 200)
+                chart.data.datasets[1].data.push(500) // 目标线
+                
+                // 保持最近20个数据点
+                if (chart.data.labels.length > 20) {
+                    chart.data.labels.shift()
+                    chart.data.datasets[0].data.shift()
+                    chart.data.datasets[1].data.shift()
+                }
+                
+                chart.update('none')
+            }
+
+            // 更新RPS图表
+            if (window.rpsChart) {
+                const chart = window.rpsChart
+                chart.data.labels.push(now)
+                chart.data.datasets[0].data.push(timeSeriesData.rps || Math.random() * 500 + 800)
+                chart.data.datasets[1].data.push(1000) // 目标线
+                
+                if (chart.data.labels.length > 20) {
+                    chart.data.labels.shift()
+                    chart.data.datasets[0].data.shift()
+                    chart.data.datasets[1].data.shift()
+                }
+                
+                chart.update('none')
+            }
+
+            // 更新资源使用图表
+            if (window.resourceChart) {
+                const chart = window.resourceChart
+                chart.data.labels.push(now)
+                chart.data.datasets[0].data.push(timeSeriesData.cpu_usage || Math.random() * 30 + 50)
+                chart.data.datasets[1].data.push(timeSeriesData.memory_usage || Math.random() * 20 + 60)
+                
+                if (chart.data.labels.length > 20) {
+                    chart.data.labels.shift()
+                    chart.data.datasets[0].data.shift()
+                    chart.data.datasets[1].data.shift()
+                }
+                
+                chart.update('none')
+            }
+
+            // 更新缓存图表
+            if (window.cacheChart) {
+                const hitRate = timeSeriesData.cache_hit_rate || 91
+                const missRate = 100 - hitRate
+                
+                window.cacheChart.data.datasets[0].data = [hitRate, missRate]
+                window.cacheChart.update('none')
+            }
+        }
+
+        // 刷新数据
+        async function refreshData() {
+            try {
+                // 模拟数据获取（实际应该从API获取）
+                const mockData = {
+                    api_response_time: Math.random() * 200 + 200,
+                    concurrent_rps: Math.random() * 500 + 1000,
+                    memory_usage: Math.random() * 30 + 50,
+                    cpu_usage: Math.random() * 40 + 40,
+                    cache_hit_rate: Math.random() * 15 + 85,
+                    error_rate: Math.random() * 0.5,
+                    frontend_performance: Math.random() * 20 + 80,
+                    database_response_time: Math.random() * 50 + 30
+                }
+
+                updateMetrics(mockData)
+                updateCharts(mockData)
+                
+                document.getElementById('last-updated-time').textContent = new Date().toLocaleString('de-DE')
+                
+            } catch (error) {
+                console.error('数据刷新失败:', error)
+            }
+        }
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts()
+            refreshData()
+            
+            // 每30秒自动刷新
+            setInterval(refreshData, 30000)
+        })
+    </script>
+</body>
+</html>

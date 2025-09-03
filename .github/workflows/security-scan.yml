@@ -1,0 +1,453 @@
+name: Security Vulnerability Scan
+
+on:
+  schedule:
+    # 每天凌晨1点运行安全扫描
+    - cron: '0 1 * * *'
+    # 每周日进行全面安全审计
+    - cron: '0 2 * * 0'
+  
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Type of security scan'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - baseline
+          - dependencies-only
+          - web-app-only
+          - api-only
+      
+      target_environment:
+        description: 'Target environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+
+  push:
+    branches: [ main ]
+    paths:
+      - 'security/**'
+      - '.github/workflows/security-scan.yml'
+      - '**/package*.json'
+      - '**/requirements*.txt'
+
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'security/**'
+      - '**/package*.json'
+      - '**/requirements*.txt'
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # 依赖漏洞扫描
+  dependency-scan:
+    name: 📦 Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    if: github.event.inputs.scan_type != 'web-app-only' && github.event.inputs.scan_type != 'api-only'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            zinses-rechner-frontend/package-lock.json
+            cloudflare-workers/api-worker/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Create security reports directory
+        run: mkdir -p security/reports/{npm-audit,snyk,safety}
+
+      - name: Run npm audit - Frontend
+        working-directory: zinses-rechner-frontend
+        run: |
+          echo "📦 扫描前端依赖漏洞..."
+          
+          # 生成详细报告
+          npm audit --json > ../security/reports/npm-audit/frontend-audit.json 2>/dev/null || true
+          npm audit > ../security/reports/npm-audit/frontend-audit.txt 2>/dev/null || true
+          
+          # 检查高危漏洞
+          HIGH_VULNS=$(npm audit --audit-level=high --json 2>/dev/null | jq -r '.metadata.vulnerabilities.high // 0' || echo "0")
+          CRITICAL_VULNS=$(npm audit --audit-level=critical --json 2>/dev/null | jq -r '.metadata.vulnerabilities.critical // 0' || echo "0")
+          
+          echo "前端高危漏洞: $HIGH_VULNS"
+          echo "前端严重漏洞: $CRITICAL_VULNS"
+          
+          if [ "$CRITICAL_VULNS" -gt 0 ]; then
+            echo "::error::发现前端严重安全漏洞: $CRITICAL_VULNS 个"
+            exit 1
+          elif [ "$HIGH_VULNS" -gt 0 ]; then
+            echo "::warning::发现前端高危安全漏洞: $HIGH_VULNS 个"
+          fi
+
+      - name: Run npm audit - API Worker
+        working-directory: cloudflare-workers/api-worker
+        run: |
+          echo "📦 扫描API Worker依赖漏洞..."
+          
+          npm audit --json > ../../security/reports/npm-audit/api-worker-audit.json 2>/dev/null || true
+          npm audit > ../../security/reports/npm-audit/api-worker-audit.txt 2>/dev/null || true
+          
+          HIGH_VULNS=$(npm audit --audit-level=high --json 2>/dev/null | jq -r '.metadata.vulnerabilities.high // 0' || echo "0")
+          
+          if [ "$HIGH_VULNS" -gt 0 ]; then
+            echo "::warning::发现API Worker高危漏洞: $HIGH_VULNS 个"
+          fi
+
+      - name: Install and run Snyk
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if [ -n "$SNYK_TOKEN" ]; then
+            echo "🔍 运行Snyk安全扫描..."
+            
+            npm install -g snyk
+            snyk auth $SNYK_TOKEN
+            
+            # 扫描前端
+            cd zinses-rechner-frontend
+            snyk test --json > ../security/reports/snyk/frontend-snyk.json 2>/dev/null || true
+            snyk test --severity-threshold=high || echo "::warning::Snyk发现前端高危漏洞"
+            cd ..
+            
+            # 扫描API Worker
+            cd cloudflare-workers/api-worker
+            snyk test --json > ../../security/reports/snyk/api-worker-snyk.json 2>/dev/null || true
+            snyk test --severity-threshold=high || echo "::warning::Snyk发现API Worker高危漏洞"
+            cd ../..
+            
+          else
+            echo "⚠️ SNYK_TOKEN未配置，跳过Snyk扫描"
+          fi
+
+      - name: Install and run Safety (Python)
+        working-directory: backend
+        run: |
+          echo "🐍 扫描Python依赖漏洞..."
+          
+          pip install safety
+          safety check --json > ../security/reports/safety/python-safety.json 2>/dev/null || true
+          safety check || echo "::warning::Safety发现Python依赖漏洞"
+
+      - name: Upload dependency scan reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-scan-reports
+          path: security/reports/
+          retention-days: 30
+
+  # Web应用安全扫描
+  web-app-scan:
+    name: 🕷️ Web Application Security Scan
+    runs-on: ubuntu-latest
+    if: github.event.inputs.scan_type != 'dependencies-only'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set target URLs
+        id: set-urls
+        run: |
+          if [ "${{ github.event.inputs.target_environment }}" = "production" ]; then
+            echo "frontend-url=https://zinses-rechner.de" >> $GITHUB_OUTPUT
+            echo "api-url=https://api.zinses-rechner.de" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.target_environment }}" = "staging" ]; then
+            echo "frontend-url=https://staging.zinses-rechner.de" >> $GITHUB_OUTPUT
+            echo "api-url=https://staging-api.zinses-rechner.de" >> $GITHUB_OUTPUT
+          else
+            echo "frontend-url=http://localhost:5173" >> $GITHUB_OUTPUT
+            echo "api-url=http://localhost:8000" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create ZAP reports directory
+        run: mkdir -p security/reports/zap
+
+      - name: Run OWASP ZAP Baseline Scan - Frontend
+        if: github.event.inputs.scan_type != 'api-only'
+        run: |
+          echo "🕷️ 运行前端基线安全扫描..."
+          
+          docker run -t --rm \
+            -v "$(pwd)/security/reports/zap:/zap/wrk/:rw" \
+            owasp/zap2docker-stable \
+            zap-baseline.py \
+            -t "${{ steps.set-urls.outputs.frontend-url }}" \
+            -g gen.conf \
+            -r "frontend-baseline-$(date +%Y%m%d_%H%M%S).html" \
+            -J "frontend-baseline-$(date +%Y%m%d_%H%M%S).json" \
+            -x "frontend-baseline-$(date +%Y%m%d_%H%M%S).xml" \
+            || echo "::warning::ZAP前端扫描发现安全问题"
+
+      - name: Run OWASP ZAP API Scan
+        if: github.event.inputs.scan_type != 'frontend-only'
+        run: |
+          echo "🔗 运行API安全扫描..."
+          
+          # 创建API扫描配置
+          cat > /tmp/api-scan-config.yaml << EOF
+          openapi: "3.0.0"
+          info:
+            title: "Zinses-Rechner API"
+            version: "1.0.0"
+          servers:
+            - url: "${{ steps.set-urls.outputs.api-url }}"
+          paths:
+            /health:
+              get:
+                summary: "Health check"
+            /api/v1/calculate/compound-interest:
+              post:
+                summary: "Calculate compound interest"
+                requestBody:
+                  content:
+                    application/json:
+                      schema:
+                        type: object
+                        properties:
+                          principal: { type: number }
+                          annual_rate: { type: number }
+                          years: { type: integer }
+                          monthly_payment: { type: number }
+          EOF
+          
+          docker run -t --rm \
+            -v "$(pwd)/security/reports/zap:/zap/wrk/:rw" \
+            -v "/tmp/api-scan-config.yaml:/zap/wrk/api-config.yaml:ro" \
+            owasp/zap2docker-stable \
+            zap-api-scan.py \
+            -t "/zap/wrk/api-config.yaml" \
+            -f openapi \
+            -r "api-scan-$(date +%Y%m%d_%H%M%S).html" \
+            -J "api-scan-$(date +%Y%m%d_%H%M%S).json" \
+            -x "api-scan-$(date +%Y%m%d_%H%M%S).xml" \
+            || echo "::warning::ZAP API扫描发现安全问题"
+
+      - name: Run Full ZAP Scan (Weekly)
+        if: github.event.schedule == '0 2 * * 0' || github.event.inputs.scan_type == 'full'
+        run: |
+          echo "🔍 运行全面安全扫描..."
+          
+          docker run -t --rm \
+            -v "$(pwd)/security/reports/zap:/zap/wrk/:rw" \
+            owasp/zap2docker-stable \
+            zap-full-scan.py \
+            -t "${{ steps.set-urls.outputs.frontend-url }}" \
+            -g gen.conf \
+            -r "full-scan-$(date +%Y%m%d_%H%M%S).html" \
+            -J "full-scan-$(date +%Y%m%d_%H%M%S).json" \
+            -x "full-scan-$(date +%Y%m%d_%H%M%S).xml" \
+            || echo "::warning::ZAP全面扫描发现安全问题"
+
+      - name: Upload ZAP scan reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-scan-reports
+          path: security/reports/zap/
+          retention-days: 30
+
+  # 安全配置验证
+  security-config-check:
+    name: ⚙️ Security Configuration Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check security headers configuration
+        run: |
+          echo "🛡️ 验证安全头配置..."
+          
+          TARGET_URL="${{ needs.web-app-scan.outputs.frontend-url || 'https://zinses-rechner.de' }}"
+          
+          # 检查关键安全头
+          HEADERS=$(curl -I -s --max-time 10 "$TARGET_URL" 2>/dev/null || echo "")
+          
+          # HSTS检查
+          if echo "$HEADERS" | grep -qi "strict-transport-security"; then
+            echo "✅ HSTS头配置正确"
+          else
+            echo "::error::HSTS头缺失或配置错误"
+          fi
+          
+          # CSP检查
+          if echo "$HEADERS" | grep -qi "content-security-policy"; then
+            echo "✅ CSP头配置正确"
+          else
+            echo "::warning::CSP头缺失"
+          fi
+          
+          # X-Frame-Options检查
+          if echo "$HEADERS" | grep -qi "x-frame-options"; then
+            echo "✅ X-Frame-Options头配置正确"
+          else
+            echo "::warning::X-Frame-Options头缺失"
+          fi
+          
+          # X-Content-Type-Options检查
+          if echo "$HEADERS" | grep -qi "x-content-type-options"; then
+            echo "✅ X-Content-Type-Options头配置正确"
+          else
+            echo "::warning::X-Content-Type-Options头缺失"
+          fi
+
+      - name: Check SSL/TLS configuration
+        run: |
+          echo "🔒 验证SSL/TLS配置..."
+          
+          TARGET_DOMAIN="zinses-rechner.de"
+          
+          # 检查SSL证书
+          echo | openssl s_client -servername "$TARGET_DOMAIN" -connect "$TARGET_DOMAIN:443" 2>/dev/null | \
+          openssl x509 -noout -dates -subject -issuer || echo "::error::SSL证书检查失败"
+          
+          # 检查TLS版本支持
+          if echo | openssl s_client -tls1_2 -servername "$TARGET_DOMAIN" -connect "$TARGET_DOMAIN:443" 2>/dev/null | grep -q "Verify return code: 0"; then
+            echo "✅ TLS 1.2支持正常"
+          else
+            echo "::error::TLS 1.2支持异常"
+          fi
+
+  # 安全扫描结果汇总
+  security-summary:
+    name: 📊 Security Scan Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, web-app-scan, security-config-check]
+    if: always()
+    
+    steps:
+      - name: Download all security artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: security-artifacts
+
+      - name: Generate security summary
+        run: |
+          echo "# 🛡️ Zinses-Rechner 安全扫描报告" > security-summary.md
+          echo "" >> security-summary.md
+          echo "**扫描时间**: $(date)" >> security-summary.md
+          echo "**扫描类型**: ${{ github.event.inputs.scan_type || 'scheduled' }}" >> security-summary.md
+          echo "**目标环境**: ${{ github.event.inputs.target_environment || 'production' }}" >> security-summary.md
+          echo "" >> security-summary.md
+          
+          echo "## 扫描结果摘要" >> security-summary.md
+          echo "- 依赖漏洞扫描: ${{ needs.dependency-scan.result }}" >> security-summary.md
+          echo "- Web应用扫描: ${{ needs.web-app-scan.result }}" >> security-summary.md
+          echo "- 安全配置检查: ${{ needs.security-config-check.result }}" >> security-summary.md
+          echo "" >> security-summary.md
+          
+          echo "## 安全状态" >> security-summary.md
+          if [ "${{ needs.dependency-scan.result }}" = "success" ] && 
+             [ "${{ needs.web-app-scan.result }}" = "success" ] && 
+             [ "${{ needs.security-config-check.result }}" = "success" ]; then
+            echo "🟢 **整体安全状态: 良好**" >> security-summary.md
+            echo "" >> security-summary.md
+            echo "所有安全检查通过，系统安全配置正确。" >> security-summary.md
+          else
+            echo "🔴 **整体安全状态: 需要关注**" >> security-summary.md
+            echo "" >> security-summary.md
+            echo "发现安全问题，请立即查看详细报告并修复。" >> security-summary.md
+          fi
+          
+          echo "" >> security-summary.md
+          echo "## 详细报告" >> security-summary.md
+          echo "- 依赖扫描: dependency-scan-reports" >> security-summary.md
+          echo "- ZAP扫描: zap-scan-reports" >> security-summary.md
+          echo "- 安全配置: 见工作流日志" >> security-summary.md
+          
+          echo "" >> security-summary.md
+          echo "## 建议行动" >> security-summary.md
+          echo "1. 修复所有高危和严重漏洞" >> security-summary.md
+          echo "2. 更新依赖包到最新安全版本" >> security-summary.md
+          echo "3. 定期运行安全扫描" >> security-summary.md
+          echo "4. 监控安全告警和事件" >> security-summary.md
+
+      - name: Upload security summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-summary
+          path: security-summary.md
+
+      - name: Comment PR with security results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('security-summary.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+
+  # 安全告警
+  security-alerts:
+    name: 🚨 Security Alerts
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, web-app-scan]
+    if: failure()
+    
+    steps:
+      - name: Send security alert notification
+        run: |
+          echo "🚨 安全扫描发现严重问题！"
+          
+          # 发送Slack通知
+          if [ -n "${{ secrets.SLACK_SECURITY_WEBHOOK }}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data '{
+                "text": "🚨 Zinses-Rechner 安全扫描告警",
+                "attachments": [
+                  {
+                    "color": "danger",
+                    "fields": [
+                      {
+                        "title": "扫描类型",
+                        "value": "${{ github.event.inputs.scan_type || 'scheduled' }}",
+                        "short": true
+                      },
+                      {
+                        "title": "环境",
+                        "value": "${{ github.event.inputs.target_environment || 'production' }}",
+                        "short": true
+                      },
+                      {
+                        "title": "分支",
+                        "value": "${{ github.ref_name }}",
+                        "short": true
+                      }
+                    ],
+                    "footer": "安全扫描系统",
+                    "ts": '${{ github.event.head_commit.timestamp }}'
+                  }
+                ]
+              }' \
+              ${{ secrets.SLACK_SECURITY_WEBHOOK }}
+          fi

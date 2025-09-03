@@ -1,0 +1,231 @@
+{
+  "monitoring_verification": {
+    "version": "1.0.0",
+    "description": "Zinses-Rechner监控系统验证配置",
+    "environments": {
+      "production": {
+        "api_url": "https://api.zinses-rechner.de",
+        "frontend_url": "https://zinses-rechner.de",
+        "monitoring_url": "https://monitoring.zinses-rechner.de",
+        "enable_test_endpoints": false,
+        "enable_stress_tests": false
+      },
+      "staging": {
+        "api_url": "https://staging-api.zinses-rechner.de",
+        "frontend_url": "https://staging.zinses-rechner.de",
+        "monitoring_url": "https://staging-monitoring.zinses-rechner.de",
+        "enable_test_endpoints": true,
+        "enable_stress_tests": true
+      },
+      "development": {
+        "api_url": "http://localhost:8000",
+        "frontend_url": "http://localhost:5173",
+        "monitoring_url": "http://localhost:3000",
+        "enable_test_endpoints": true,
+        "enable_stress_tests": true
+      }
+    },
+    "verification_targets": {
+      "health_checks": {
+        "enabled": true,
+        "endpoints": [
+          "/health",
+          "/test/health-detailed",
+          "/test/system-metrics"
+        ],
+        "expected_response_time_ms": 2000,
+        "required_fields": [
+          "status",
+          "timestamp",
+          "components"
+        ]
+      },
+      "alert_rules": {
+        "enabled": true,
+        "test_scenarios": [
+          {
+            "name": "CPU使用率告警",
+            "metric": "cpu_usage",
+            "threshold": 80,
+            "test_value": 95,
+            "expected_trigger": true
+          },
+          {
+            "name": "内存使用率告警",
+            "metric": "memory_usage",
+            "threshold": 80,
+            "test_value": 90,
+            "expected_trigger": true
+          },
+          {
+            "name": "API响应时间告警",
+            "metric": "api_response_time",
+            "threshold": 1000,
+            "test_value": 2000,
+            "expected_trigger": true
+          },
+          {
+            "name": "错误率告警",
+            "metric": "error_rate",
+            "threshold": 1,
+            "test_value": 5,
+            "expected_trigger": true
+          },
+          {
+            "name": "正常CPU使用率",
+            "metric": "cpu_usage",
+            "threshold": 80,
+            "test_value": 50,
+            "expected_trigger": false
+          }
+        ]
+      },
+      "notification_channels": {
+        "enabled": true,
+        "channels": [
+          {
+            "name": "Slack",
+            "type": "webhook",
+            "config_env": "SLACK_WEBHOOK_URL",
+            "test_message": "🧪 监控系统验证测试通知"
+          },
+          {
+            "name": "Email",
+            "type": "smtp",
+            "config_env": "EMAIL_SMTP_SERVER",
+            "test_message": "监控系统验证测试邮件"
+          }
+        ]
+      },
+      "performance_monitoring": {
+        "enabled": true,
+        "metrics": [
+          {
+            "name": "API响应时间",
+            "endpoint": "/health",
+            "max_response_time_ms": 1000,
+            "test_requests": 10
+          },
+          {
+            "name": "并发处理能力",
+            "endpoint": "/health",
+            "concurrent_requests": 20,
+            "max_total_time_ms": 5000
+          },
+          {
+            "name": "缓存性能",
+            "endpoint": "/api/v1/calculate/compound-interest",
+            "test_payload": {
+              "principal": 10000,
+              "annual_rate": 4.0,
+              "years": 10,
+              "monthly_payment": 500,
+              "compound_frequency": "monthly"
+            },
+            "expected_cache_improvement_percent": 20
+          }
+        ]
+      },
+      "dashboard_validation": {
+        "enabled": true,
+        "components": [
+          {
+            "name": "API响应时间卡片",
+            "selector": "[data-testid='api-response-time']",
+            "expected_format": "number_with_unit"
+          },
+          {
+            "name": "并发RPS卡片",
+            "selector": "[data-testid='concurrent-rps']",
+            "expected_format": "formatted_number"
+          },
+          {
+            "name": "内存使用率卡片",
+            "selector": "[data-testid='memory-usage']",
+            "expected_format": "percentage"
+          },
+          {
+            "name": "CPU使用率卡片",
+            "selector": "[data-testid='cpu-usage']",
+            "expected_format": "percentage"
+          },
+          {
+            "name": "响应时间图表",
+            "selector": "#response-time-chart",
+            "expected_type": "canvas"
+          },
+          {
+            "name": "RPS图表",
+            "selector": "#rps-chart",
+            "expected_type": "canvas"
+          },
+          {
+            "name": "资源使用图表",
+            "selector": "#resource-chart",
+            "expected_type": "canvas"
+          },
+          {
+            "name": "缓存性能图表",
+            "selector": "#cache-chart",
+            "expected_type": "canvas"
+          }
+        ],
+        "auto_refresh": {
+          "enabled": true,
+          "interval_seconds": 30,
+          "verify_data_updates": true
+        }
+      }
+    },
+    "thresholds": {
+      "api_response_time_ms": 1000,
+      "concurrent_rps_min": 50,
+      "memory_usage_max_percent": 80,
+      "cpu_usage_max_percent": 80,
+      "cache_hit_rate_min_percent": 70,
+      "error_rate_max_percent": 1,
+      "uptime_min_percent": 99.9
+    },
+    "reporting": {
+      "formats": ["json", "markdown", "html"],
+      "output_directory": "monitoring/reports",
+      "retention_days": 30,
+      "include_screenshots": true,
+      "include_performance_traces": true
+    },
+    "scheduling": {
+      "daily_verification": {
+        "enabled": true,
+        "time": "08:00",
+        "type": "health-only"
+      },
+      "weekly_verification": {
+        "enabled": true,
+        "day": "monday",
+        "time": "06:00",
+        "type": "full"
+      },
+      "post_deployment": {
+        "enabled": true,
+        "delay_minutes": 5,
+        "type": "baseline"
+      }
+    },
+    "integrations": {
+      "github": {
+        "create_issues_on_failure": true,
+        "issue_labels": ["monitoring", "verification", "bug"],
+        "assign_to_team": "infrastructure"
+      },
+      "slack": {
+        "notify_on_failure": true,
+        "notify_on_success": false,
+        "channel": "#monitoring-alerts"
+      },
+      "email": {
+        "notify_on_critical_failure": true,
+        "recipients": ["admin@zinses-rechner.de"]
+      }
+    }
+  }
+}

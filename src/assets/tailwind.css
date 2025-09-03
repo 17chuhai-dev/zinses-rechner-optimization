@@ -1,0 +1,195 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* 德语字体导入 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* 基础样式重置和德国本地化 */
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply text-gray-900 bg-gray-50;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+  
+  /* 德语数字和货币显示优化 */
+  .currency {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.025em;
+  }
+  
+  /* 表单元素德语优化 */
+  input[type="number"] {
+    font-variant-numeric: tabular-nums;
+  }
+  
+  /* 滚动条样式 */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+  }
+}
+
+/* 组件样式 */
+@layer components {
+  /* 按钮基础样式 */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-primary {
+    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500;
+  }
+  
+  .btn-success {
+    @apply btn bg-success-600 text-white hover:bg-success-700 focus:ring-success-500;
+  }
+  
+  .btn-danger {
+    @apply btn bg-danger-600 text-white hover:bg-danger-700 focus:ring-danger-500;
+  }
+  
+  /* 输入框样式 */
+  .input {
+    @apply block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm;
+  }
+  
+  .input-error {
+    @apply input border-danger-300 focus:ring-danger-500 focus:border-danger-500;
+  }
+  
+  /* 卡片样式 */
+  .card {
+    @apply bg-white rounded-lg shadow-soft border border-gray-200;
+  }
+  
+  .card-header {
+    @apply px-6 py-4 border-b border-gray-200;
+  }
+  
+  .card-body {
+    @apply px-6 py-4;
+  }
+  
+  .card-footer {
+    @apply px-6 py-4 border-t border-gray-200 bg-gray-50;
+  }
+  
+  /* 结果卡片样式 */
+  .result-card {
+    @apply card p-4 text-center;
+  }
+  
+  .result-card-primary {
+    @apply result-card bg-primary-50 border-primary-200;
+  }
+  
+  .result-card-success {
+    @apply result-card bg-success-50 border-success-200;
+  }
+  
+  .result-card-warning {
+    @apply result-card bg-warning-50 border-warning-200;
+  }
+  
+  /* 标签样式 */
+  .label {
+    @apply block text-sm font-medium text-gray-700 mb-2;
+  }
+  
+  .label-required::after {
+    content: ' *';
+    @apply text-danger-500;
+  }
+  
+  /* 错误消息样式 */
+  .error-message {
+    @apply mt-1 text-sm text-danger-600;
+  }
+  
+  /* 帮助文本样式 */
+  .help-text {
+    @apply mt-1 text-sm text-gray-500;
+  }
+  
+  /* 加载状态 */
+  .loading {
+    @apply animate-pulse;
+  }
+  
+  /* 德语特定的排版 */
+  .typography-de {
+    line-height: 1.6;
+    letter-spacing: -0.01em;
+  }
+  
+  .typography-de h1 {
+    @apply text-3xl font-bold text-gray-900 mb-4;
+  }
+  
+  .typography-de h2 {
+    @apply text-2xl font-semibold text-gray-800 mb-3;
+  }
+  
+  .typography-de h3 {
+    @apply text-xl font-medium text-gray-800 mb-2;
+  }
+  
+  .typography-de p {
+    @apply text-gray-600 mb-4;
+  }
+}
+
+/* 工具类 */
+@layer utilities {
+  /* 德语数字格式化 */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+  
+  /* 平滑动画 */
+  .transition-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* 焦点可见性 */
+  .focus-visible {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+  }
+  
+  /* 截断文本 */
+  .truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .truncate-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}

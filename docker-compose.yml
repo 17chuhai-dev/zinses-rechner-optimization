@@ -1,0 +1,103 @@
+# 德国复利计算器 Docker Compose 配置
+# 开发环境完整栈部署
+
+version: '3.8'
+
+services:
+  # 前端服务
+  frontend:
+    build:
+      context: ./zinses-rechner-frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: zinses-rechner-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./zinses-rechner-frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_BASE_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - zinses-rechner-network
+    restart: unless-stopped
+
+  # 后端服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: zinses-rechner-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend-logs:/app/logs
+    environment:
+      - ENVIRONMENT=development
+      - PYTHONPATH=/app
+      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+      - ALLOWED_HOSTS=localhost,127.0.0.1,backend
+    networks:
+      - zinses-rechner-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis缓存服务（可选）
+  redis:
+    image: redis:7-alpine
+    container_name: zinses-rechner-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - zinses-rechner-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx反向代理（生产环境）
+  nginx:
+    image: nginx:alpine
+    container_name: zinses-rechner-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - zinses-rechner-network
+    restart: unless-stopped
+    profiles:
+      - production
+
+# 网络配置
+networks:
+  zinses-rechner-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# 数据卷
+volumes:
+  backend-logs:
+    driver: local
+  redis-data:
+    driver: local

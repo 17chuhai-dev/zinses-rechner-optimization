@@ -1,0 +1,52 @@
+# 开发环境专用配置
+# 使用方法: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      target: development
+    volumes:
+      - ./zinses-rechner-frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_ENABLE_ANALYTICS=false
+      - VITE_ENABLE_PERFORMANCE_MONITORING=false
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+  backend:
+    volumes:
+      - ./backend:/app
+      - backend-logs:/app/logs
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - LOG_LEVEL=debug
+      - RELOAD=true
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--log-level", "debug"]
+
+  # 开发工具服务
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: zinses-rechner-mailhog
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - zinses-rechner-network
+    restart: unless-stopped
+
+  # 数据库管理工具（如果使用数据库）
+  adminer:
+    image: adminer:latest
+    container_name: zinses-rechner-adminer
+    ports:
+      - "8080:8080"
+    networks:
+      - zinses-rechner-network
+    restart: unless-stopped
+    profiles:
+      - database

@@ -1,0 +1,268 @@
+# Prometheus 告警规则
+# 德国利息计算器应用告警配置
+
+groups:
+  # 应用可用性告警
+  - name: application.availability
+    rules:
+      - alert: ApplicationDown
+        expr: up{job=~"zinses-rechner-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "{{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 1 minute."
+          runbook_url: "https://docs.zinses-rechner.de/runbooks/application-down"
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{job="zinses-rechner-backend",status=~"5.."}[5m]) / rate(http_requests_total{job="zinses-rechner-backend"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes."
+
+      - alert: CriticalErrorRate
+        expr: rate(http_requests_total{job="zinses-rechner-backend",status=~"5.."}[5m]) / rate(http_requests_total{job="zinses-rechner-backend"}[5m]) > 0.10
+        for: 2m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "Critical error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 2 minutes."
+
+  # 性能告警
+  - name: application.performance
+    rules:
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="zinses-rechner-backend"}[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s for the last 5 minutes."
+
+      - alert: SlowCalculations
+        expr: histogram_quantile(0.95, rate(zinses_calculation_duration_seconds_bucket[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+          service: calculations
+        annotations:
+          summary: "Slow calculations detected"
+          description: "95th percentile calculation time is {{ $value }}s."
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{job="zinses-rechner-backend"} / 1024 / 1024 > 512
+        for: 10m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}MB for the last 10 minutes."
+
+      - alert: CriticalMemoryUsage
+        expr: process_resident_memory_bytes{job="zinses-rechner-backend"} / 1024 / 1024 > 1024
+        for: 5m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "Critical memory usage"
+          description: "Memory usage is {{ $value }}MB."
+
+  # 数据库告警
+  - name: database
+    rules:
+      - alert: DatabaseDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "Database is down"
+          description: "PostgreSQL database has been down for more than 1 minute."
+
+      - alert: HighDatabaseConnections
+        expr: pg_stat_database_numbackends{datname="zinses_rechner"} > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "High database connections"
+          description: "Database has {{ $value }} active connections."
+
+      - alert: SlowQueries
+        expr: rate(pg_stat_database_tup_returned{datname="zinses_rechner"}[5m]) / rate(pg_stat_database_tup_fetched{datname="zinses_rechner"}[5m]) < 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Query efficiency is {{ $value | humanizePercentage }}."
+
+  # 缓存告警
+  - name: cache
+    rules:
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: cache
+        annotations:
+          summary: "Redis is down"
+          description: "Redis cache has been down for more than 1 minute."
+
+      - alert: LowCacheHitRate
+        expr: redis_keyspace_hits_total / (redis_keyspace_hits_total + redis_keyspace_misses_total) < 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: cache
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}."
+
+      - alert: HighRedisMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: cache
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is {{ $value | humanizePercentage }}."
+
+  # 外部服务告警
+  - name: external.services
+    rules:
+      - alert: ExternalServiceDown
+        expr: probe_success{job="blackbox"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: external
+        annotations:
+          summary: "External service is down"
+          description: "{{ $labels.instance }} has been down for more than 2 minutes."
+
+      - alert: SlowExternalService
+        expr: probe_duration_seconds{job="blackbox"} > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: external
+        annotations:
+          summary: "Slow external service"
+          description: "{{ $labels.instance }} response time is {{ $value }}s."
+
+  # 业务指标告警
+  - name: business.metrics
+    rules:
+      - alert: LowCalculationVolume
+        expr: rate(zinses_calculations_total[1h]) * 3600 < 10
+        for: 30m
+        labels:
+          severity: info
+          service: business
+        annotations:
+          summary: "Low calculation volume"
+          description: "Only {{ $value }} calculations per hour in the last 30 minutes."
+
+      - alert: HighUserDropoff
+        expr: (zinses_user_sessions_started - zinses_user_sessions_completed) / zinses_user_sessions_started > 0.7
+        for: 15m
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "High user drop-off rate"
+          description: "User drop-off rate is {{ $value | humanizePercentage }}."
+
+      - alert: CalculationErrors
+        expr: rate(zinses_calculation_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: calculations
+        annotations:
+          summary: "Calculation errors detected"
+          description: "{{ $value }} calculation errors per second."
+
+  # 系统资源告警
+  - name: system.resources
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}."
+
+      - alert: HighDiskUsage
+        expr: (node_filesystem_size_bytes - node_filesystem_avail_bytes) / node_filesystem_size_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High disk usage"
+          description: "Disk usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}."
+
+      - alert: CriticalDiskUsage
+        expr: (node_filesystem_size_bytes - node_filesystem_avail_bytes) / node_filesystem_size_bytes > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "Critical disk usage"
+          description: "Disk usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}."
+
+  # 安全告警
+  - name: security
+    rules:
+      - alert: SuspiciousActivity
+        expr: rate(http_requests_total{status="401"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "Suspicious authentication activity"
+          description: "{{ $value }} failed authentication attempts per second."
+
+      - alert: DDoSAttack
+        expr: rate(http_requests_total[1m]) > 1000
+        for: 1m
+        labels:
+          severity: critical
+          service: security
+        annotations:
+          summary: "Possible DDoS attack"
+          description: "{{ $value }} requests per second detected."
+
+      - alert: TooManyErrors
+        expr: rate(http_requests_total{status=~"4.."}[5m]) > 50
+        for: 3m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "High 4xx error rate"
+          description: "{{ $value }} 4xx errors per second."

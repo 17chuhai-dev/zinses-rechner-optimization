@@ -1,0 +1,239 @@
+{
+  "config": {
+    "configFile": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/playwright.config.ts",
+    "rootDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/tests/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {},
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "reports/playwright"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "reports/playwright/results.json"
+        }
+      ],
+      [
+        "junit",
+        {
+          "outputFile": "reports/playwright/results.xml"
+        }
+      ],
+      [
+        "line",
+        null
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "chromium-desktop",
+        "name": "chromium-desktop",
+        "testDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/tests/e2e",
+        "testIgnore": [
+          "**/node_modules/**",
+          "**/dist/**",
+          "**/.git/**"
+        ],
+        "testMatch": [
+          "**/tests/e2e/**/*.spec.ts",
+          "**/tests/e2e/**/*.test.ts"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "firefox-desktop",
+        "name": "firefox-desktop",
+        "testDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/tests/e2e",
+        "testIgnore": [
+          "**/node_modules/**",
+          "**/dist/**",
+          "**/.git/**"
+        ],
+        "testMatch": [
+          "**/tests/e2e/**/*.spec.ts",
+          "**/tests/e2e/**/*.test.ts"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "webkit-desktop",
+        "name": "webkit-desktop",
+        "testDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/tests/e2e",
+        "testIgnore": [
+          "**/node_modules/**",
+          "**/dist/**",
+          "**/.git/**"
+        ],
+        "testMatch": [
+          "**/tests/e2e/**/*.spec.ts",
+          "**/tests/e2e/**/*.test.ts"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "mobile-chrome",
+        "name": "mobile-chrome",
+        "testDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/tests/e2e",
+        "testIgnore": [
+          "**/node_modules/**",
+          "**/dist/**",
+          "**/.git/**"
+        ],
+        "testMatch": [
+          "**/tests/e2e/**/*.spec.ts",
+          "**/tests/e2e/**/*.test.ts"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "mobile-safari",
+        "name": "mobile-safari",
+        "testDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/tests/e2e",
+        "testIgnore": [
+          "**/node_modules/**",
+          "**/dist/**",
+          "**/.git/**"
+        ],
+        "testMatch": [
+          "**/tests/e2e/**/*.spec.ts",
+          "**/tests/e2e/**/*.test.ts"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "tablet-chrome",
+        "name": "tablet-chrome",
+        "testDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/tests/e2e",
+        "testIgnore": [
+          "**/node_modules/**",
+          "**/dist/**",
+          "**/.git/**"
+        ],
+        "testMatch": [
+          "**/tests/e2e/**/*.spec.ts",
+          "**/tests/e2e/**/*.test.ts"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "slow-network",
+        "name": "slow-network",
+        "testDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/tests/e2e",
+        "testIgnore": [
+          "**/node_modules/**",
+          "**/dist/**",
+          "**/.git/**"
+        ],
+        "testMatch": [
+          "**/tests/e2e/**/*.spec.ts",
+          "**/tests/e2e/**/*.test.ts"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "high-dpi",
+        "name": "high-dpi",
+        "testDir": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/tests/e2e",
+        "testIgnore": [
+          "**/node_modules/**",
+          "**/dist/**",
+          "**/.git/**"
+        ],
+        "testMatch": [
+          "**/tests/e2e/**/*.spec.ts",
+          "**/tests/e2e/**/*.test.ts"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "shard": null,
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.55.0",
+    "workers": 5,
+    "webServer": {
+      "command": "npm run dev",
+      "url": "http://localhost:5173",
+      "reuseExistingServer": true,
+      "timeout": 120000,
+      "env": {
+        "NODE_ENV": "test",
+        "VITE_API_BASE_URL": "http://localhost:8000"
+      }
+    }
+  },
+  "suites": [],
+  "errors": [
+    {
+      "message": "Error: Cannot find package '@axe-core/playwright' imported from /Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/tests/e2e/accessibility.spec.ts",
+      "stack": "Error: Cannot find package '@axe-core/playwright' imported from /Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/tests/e2e/accessibility.spec.ts"
+    },
+    {
+      "message": "SyntaxError: /Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/tests/e2e/cross-browser.spec.ts: `import` can only be used in `import()` or `import.meta`. (224:24)\n\n  222 |         fetch_api: typeof fetch === 'function',\n  223 |         promises: typeof Promise === 'function',\n> 224 |         modules: typeof import === 'function'\n      |                         ^\n  225 |       }\n  226 |       \n  227 |       return features",
+      "stack": "SyntaxError: /Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/tests/e2e/cross-browser.spec.ts: `import` can only be used in `import()` or `import.meta`. (224:24)\n\n  222 |         fetch_api: typeof fetch === 'function',\n  223 |         promises: typeof Promise === 'function',\n> 224 |         modules: typeof import === 'function'\n      |                         ^\n  225 |       }\n  226 |       \n  227 |       return features",
+      "location": {
+        "file": "/Users/yc/Downloads/Zinses rechner/zinses-rechner-frontend/tests/e2e/cross-browser.spec.ts",
+        "line": 224,
+        "column": 24
+      },
+      "snippet": "\u001b[90m   at \u001b[39mcross-browser.spec.ts:224\n\n\u001b[0m \u001b[90m 222 |\u001b[39m         fetch_api\u001b[33m:\u001b[39m \u001b[36mtypeof\u001b[39m fetch \u001b[33m===\u001b[39m \u001b[32m'function'\u001b[39m\u001b[33m,\u001b[39m\n \u001b[90m 223 |\u001b[39m         promises\u001b[33m:\u001b[39m \u001b[36mtypeof\u001b[39m \u001b[33mPromise\u001b[39m \u001b[33m===\u001b[39m \u001b[32m'function'\u001b[39m\u001b[33m,\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 224 |\u001b[39m         modules\u001b[33m:\u001b[39m \u001b[36mtypeof\u001b[39m \u001b[36mimport\u001b[39m \u001b[33m===\u001b[39m \u001b[32m'function'\u001b[39m\n \u001b[90m     |\u001b[39m                        \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 225 |\u001b[39m       }\n \u001b[90m 226 |\u001b[39m       \n \u001b[90m 227 |\u001b[39m       \u001b[36mreturn\u001b[39m features\u001b[0m"
+    }
+  ],
+  "stats": {
+    "startTime": "2025-08-31T18:45:26.147Z",
+    "duration": 155.331,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

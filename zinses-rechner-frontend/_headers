@@ -1,0 +1,99 @@
+# Cloudflare Pages HTTP头配置
+# 优化安全性、性能和SEO
+
+# 全局安全头
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.zinses-rechner.de https://www.google-analytics.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+
+# 静态资源缓存优化
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+  
+/icons/*
+  Cache-Control: public, max-age=31536000, immutable
+  
+/images/*
+  Cache-Control: public, max-age=86400
+  
+# JavaScript和CSS文件
+*.js
+  Cache-Control: public, max-age=31536000, immutable
+  Content-Encoding: gzip
+  
+*.css
+  Cache-Control: public, max-age=31536000, immutable
+  Content-Encoding: gzip
+
+# 字体文件优化
+*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *
+
+*.woff
+  Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *
+
+# PWA相关文件
+/manifest.webmanifest
+  Cache-Control: public, max-age=86400
+  Content-Type: application/manifest+json
+
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+  Content-Type: application/javascript
+
+# HTML文件
+*.html
+  Cache-Control: public, max-age=3600
+  Content-Type: text/html; charset=utf-8
+
+# 主页特殊配置
+/
+  Cache-Control: public, max-age=3600
+  Content-Type: text/html; charset=utf-8
+  Link: </assets/main.css>; rel=preload; as=style
+  Link: </assets/main.js>; rel=preload; as=script
+
+# API预连接优化
+/
+  Link: <https://api.zinses-rechner.de>; rel=preconnect
+  Link: <https://fonts.googleapis.com>; rel=preconnect
+  Link: <https://fonts.gstatic.com>; rel=preconnect; crossorigin
+
+# 图片格式优化
+*.webp
+  Cache-Control: public, max-age=86400
+  Content-Type: image/webp
+
+*.avif
+  Cache-Control: public, max-age=86400
+  Content-Type: image/avif
+
+# JSON数据文件
+*.json
+  Cache-Control: public, max-age=3600
+  Content-Type: application/json
+
+# 错误页面
+/404.html
+  Cache-Control: public, max-age=3600
+  Content-Type: text/html; charset=utf-8
+
+# 机器人文件
+/robots.txt
+  Cache-Control: public, max-age=86400
+  Content-Type: text/plain
+
+/sitemap.xml
+  Cache-Control: public, max-age=86400
+  Content-Type: application/xml
+
+# 安全文件
+/.well-known/*
+  Cache-Control: public, max-age=86400

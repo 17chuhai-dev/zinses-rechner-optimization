@@ -1,0 +1,56 @@
+{
+  "name": "zinses-rechner-api-worker",
+  "version": "1.0.0",
+  "description": "Zinses-Rechner API - Cloudflare Workers版本",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "tsc && esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --platform=neutral --target=es2022",
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:staging": "npm run build && wrangler deploy --env staging",
+    "deploy:production": "npm run build && wrangler deploy --env production",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "type-check": "tsc --noEmit",
+    "preview": "wrangler dev --env preview",
+    "logs": "wrangler tail",
+    "logs:production": "wrangler tail --env production"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "api",
+    "compound-interest",
+    "financial-calculator",
+    "german-finance",
+    "typescript"
+  ],
+  "author": "Zinses-Rechner Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@cloudflare/workers-types": "^4.20231218.0",
+    "esbuild": "^0.19.8",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.0",
+    "wrangler": "^3.22.1"
+  },
+  "dependencies": {
+    "itty-router": "^4.0.25"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zinses-rechner/api-worker.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zinses-rechner/api-worker/issues"
+  },
+  "homepage": "https://zinses-rechner.de"
+}

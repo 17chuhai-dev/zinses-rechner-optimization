@@ -1,0 +1,222 @@
+# OWASP ZAP安全扫描配置
+# 针对Zinses-Rechner的Web应用安全测试
+
+# 扫描目标配置
+target:
+  url: "https://zinses-rechner.de"
+  api_url: "https://api.zinses-rechner.de"
+  
+# 扫描范围
+scope:
+  include:
+    - "https://zinses-rechner.de/*"
+    - "https://api.zinses-rechner.de/api/v1/*"
+    - "https://api.zinses-rechner.de/health"
+  
+  exclude:
+    - "https://zinses-rechner.de/admin/*"
+    - "https://api.zinses-rechner.de/docs"
+    - "https://api.zinses-rechner.de/redoc"
+
+# 认证配置
+authentication:
+  # 如果需要认证，配置认证方式
+  type: "none"  # 当前应用无需认证
+  
+# 扫描策略
+scan_policy:
+  # 被动扫描规则
+  passive_scan:
+    enabled: true
+    rules:
+      - "Application Error Disclosure"
+      - "Cookie Security"
+      - "Cross Domain Script Inclusion"
+      - "Information Disclosure"
+      - "Private IP Disclosure"
+      - "Session ID in URL Rewrite"
+      - "SQL Injection"
+      - "Weak Authentication Method"
+      - "X-Frame-Options Header"
+      - "X-Content-Type-Options Header"
+      - "Content Security Policy"
+      - "Strict Transport Security"
+
+  # 主动扫描规则
+  active_scan:
+    enabled: true
+    strength: "medium"  # low, medium, high, insane
+    rules:
+      - "SQL Injection"
+      - "Cross Site Scripting (Reflected)"
+      - "Cross Site Scripting (Stored)"
+      - "Path Traversal"
+      - "Remote File Inclusion"
+      - "Server Side Include"
+      - "Script Active Scan Rules"
+      - "XML External Entity Attack"
+      - "LDAP Injection"
+      - "Command Injection"
+      - "Buffer Overflow"
+      - "Format String Error"
+
+# 扫描参数
+scan_settings:
+  # 扫描深度
+  max_depth: 5
+  
+  # 并发线程数
+  thread_count: 5
+  
+  # 请求延迟（毫秒）
+  delay_in_ms: 100
+  
+  # 超时设置
+  timeout: 30000
+  
+  # 用户代理
+  user_agent: "OWASP ZAP Security Scanner"
+
+# 报告配置
+reporting:
+  formats:
+    - "html"
+    - "json"
+    - "xml"
+    - "md"
+  
+  output_dir: "security/reports/zap"
+  
+  # 报告详细级别
+  detail_level: "high"  # low, medium, high
+  
+  # 包含的风险级别
+  risk_levels:
+    - "High"
+    - "Medium"
+    - "Low"
+    - "Informational"
+
+# 特定测试配置
+specific_tests:
+  # SQL注入测试
+  sql_injection:
+    enabled: true
+    payloads:
+      - "' OR '1'='1"
+      - "'; DROP TABLE users; --"
+      - "1' UNION SELECT NULL,NULL,NULL--"
+      - "admin'--"
+      - "admin' #"
+    
+    test_parameters:
+      - "principal"
+      - "annual_rate"
+      - "years"
+      - "monthly_payment"
+
+  # XSS测试
+  xss_testing:
+    enabled: true
+    payloads:
+      - "<script>alert('XSS')</script>"
+      - "<img src=x onerror=alert('XSS')>"
+      - "javascript:alert('XSS')"
+      - "<svg onload=alert('XSS')>"
+      - "';alert('XSS');//"
+    
+    test_locations:
+      - "form_inputs"
+      - "url_parameters"
+      - "http_headers"
+
+  # CSRF测试
+  csrf_testing:
+    enabled: true
+    check_tokens: true
+    check_referer: true
+    check_origin: true
+
+  # 文件上传测试
+  file_upload:
+    enabled: false  # 当前应用无文件上传功能
+    
+  # API安全测试
+  api_security:
+    enabled: true
+    test_methods:
+      - "GET"
+      - "POST"
+      - "OPTIONS"
+    
+    test_headers:
+      - "Authorization"
+      - "X-API-Key"
+      - "Content-Type"
+    
+    test_endpoints:
+      - "/api/v1/calculate/compound-interest"
+      - "/health"
+      - "/api/v1/privacy/compliance-status"
+
+# 误报过滤
+false_positive_filters:
+  # 已知的安全实现，不需要报告
+  ignore_rules:
+    - rule_id: "10021"  # X-Content-Type-Options Header Missing
+      reason: "已在安全中间件中配置"
+    
+    - rule_id: "10020"  # X-Frame-Options Header Missing
+      reason: "已在CSP中配置frame-ancestors"
+
+# 扫描后处理
+post_scan:
+  # 自动修复建议
+  auto_fix_suggestions: true
+  
+  # 风险评估
+  risk_assessment: true
+  
+  # 合规检查
+  compliance_check:
+    standards:
+      - "OWASP Top 10"
+      - "DSGVO"
+      - "ISO 27001"
+
+# 集成配置
+integrations:
+  # GitHub集成
+  github:
+    enabled: true
+    create_issues: true
+    issue_labels: ["security", "vulnerability"]
+  
+  # Slack通知
+  slack:
+    enabled: true
+    webhook_url_env: "SLACK_SECURITY_WEBHOOK"
+    notify_on:
+      - "high_risk_found"
+      - "scan_completed"
+      - "scan_failed"
+
+# 调度配置
+schedule:
+  # 定期扫描
+  daily_scan:
+    enabled: true
+    time: "02:00"
+    scan_type: "baseline"
+  
+  weekly_scan:
+    enabled: true
+    day: "sunday"
+    time: "01:00"
+    scan_type: "full"
+  
+  # 部署后扫描
+  post_deployment:
+    enabled: true
+    scan_type: "baseline"
+    delay_minutes: 5

@@ -1,0 +1,81 @@
+# Cloudflare Pages重定向配置
+# 优化SEO和用户体验
+
+# 主域名重定向 - 统一使用非www域名
+https://www.zinses-rechner.de/* https://zinses-rechner.de/:splat 301!
+
+# API请求重定向到Workers
+/api/* https://api.zinses-rechner.de/:splat 200
+
+# 监控仪表盘重定向
+/admin/monitoring https://monitoring.zinses-rechner.de/ 302
+/monitoring https://monitoring.zinses-rechner.de/ 302
+
+# 旧版本兼容性重定向
+/calculator /  301
+/rechner /  301
+/zinsrechner /  301
+/compound-interest /  301
+
+# 德语SEO友好URL
+/zinseszins-rechner /  301
+/sparrechner /  301
+/geldanlage-rechner /  301
+/zinsen-berechnen /  301
+
+# 功能页面重定向
+/hilfe /help  301
+/faq /help  301
+/kontakt /contact  301
+/impressum /legal  301
+/datenschutz /privacy  301
+
+# 移动端优化重定向
+/m/* /:splat  301
+/mobile/* /:splat  301
+
+# 文件扩展名处理
+/index /  301
+/index.html /  301
+/home /  301
+
+# 错误页面
+/404 /404.html 200
+/error /404.html 200
+
+# 健康检查端点
+/health /api/health 200
+/ping /api/health 200
+/status /api/health 200
+
+# 静态资源优化
+/favicon.ico /icons/favicon.ico 200
+/apple-touch-icon.png /icons/icon-180x180.png 200
+/icon-192x192.png /icons/icon-192x192.png 200
+/icon-512x512.png /icons/icon-512x512.png 200
+
+# 搜索引擎优化
+/sitemap /sitemap.xml 200
+/robots /robots.txt 200
+
+# 社交媒体分享优化
+/share/* /?share=:splat 200
+
+# 深度链接支持
+/calculate/* /?calculation=:splat 200
+/result/* /?result=:splat 200
+
+# 语言重定向（未来扩展）
+/en/* /  302
+/english/* /  302
+
+# 安全重定向
+/admin/* /404.html 404
+/wp-admin/* /404.html 404
+/wp-login.php /404.html 404
+/.env /404.html 404
+/.git/* /404.html 404
+/config/* /404.html 404
+
+# SPA回退 - 必须放在最后
+/* /index.html 200

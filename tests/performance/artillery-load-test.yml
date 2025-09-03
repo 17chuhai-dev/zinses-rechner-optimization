@@ -1,0 +1,182 @@
+# Artillery负载测试配置
+# 测试Zinses-Rechner API的并发性能
+
+config:
+  target: 'https://api.zinses-rechner.de'
+  phases:
+    # 预热阶段
+    - duration: 60
+      arrivalRate: 10
+      name: "预热阶段"
+    
+    # 渐进增压阶段
+    - duration: 300
+      arrivalRate: 50
+      rampTo: 200
+      name: "渐进增压"
+    
+    # 峰值负载阶段
+    - duration: 600
+      arrivalRate: 500
+      name: "峰值负载"
+    
+    # 压力测试阶段
+    - duration: 300
+      arrivalRate: 1000
+      name: "压力测试"
+    
+    # 恢复阶段
+    - duration: 120
+      arrivalRate: 50
+      name: "恢复阶段"
+
+  # 性能目标
+  ensure:
+    # API响应时间目标
+    - p95: 500  # 95%的请求应在500ms内完成
+    - p99: 1000 # 99%的请求应在1秒内完成
+    - maxErrorRate: 1  # 错误率不超过1%
+
+  # 负载测试插件
+  plugins:
+    expect: {}
+    metrics-by-endpoint: {}
+    publish-metrics:
+      - type: cloudwatch
+        region: eu-central-1
+        namespace: "ZinsesRechner/LoadTest"
+
+  # HTTP配置
+  http:
+    timeout: 10
+    pool: 50  # 连接池大小
+
+  # 环境变量
+  variables:
+    api_base_url: "https://api.zinses-rechner.de"
+    test_user_agent: "Artillery-LoadTest/1.0"
+
+# 测试场景
+scenarios:
+  # 基础复利计算测试
+  - name: "基础复利计算"
+    weight: 40
+    flow:
+      - post:
+          url: "/api/v1/calculate/compound-interest"
+          headers:
+            Content-Type: "application/json"
+            User-Agent: "{{ test_user_agent }}"
+          json:
+            principal: "{{ $randomInt(1000, 100000) }}"
+            annual_rate: "{{ $randomFloat(1.0, 10.0) }}"
+            years: "{{ $randomInt(1, 30) }}"
+            monthly_payment: 0
+            compound_frequency: "monthly"
+          expect:
+            - statusCode: 200
+            - hasProperty: "final_amount"
+            - hasProperty: "total_interest"
+            - hasProperty: "yearly_breakdown"
+          capture:
+            - json: "$.final_amount"
+              as: "final_amount"
+            - json: "$.calculation_time"
+              as: "calc_time"
+
+  # 月供复利计算测试
+  - name: "月供复利计算"
+    weight: 30
+    flow:
+      - post:
+          url: "/api/v1/calculate/compound-interest"
+          headers:
+            Content-Type: "application/json"
+            User-Agent: "{{ test_user_agent }}"
+          json:
+            principal: "{{ $randomInt(5000, 50000) }}"
+            annual_rate: "{{ $randomFloat(2.0, 8.0) }}"
+            years: "{{ $randomInt(5, 25) }}"
+            monthly_payment: "{{ $randomInt(100, 2000) }}"
+            compound_frequency: "monthly"
+          expect:
+            - statusCode: 200
+            - contentType: "application/json"
+
+  # 健康检查测试
+  - name: "健康检查"
+    weight: 20
+    flow:
+      - get:
+          url: "/health"
+          expect:
+            - statusCode: 200
+            - hasProperty: "status"
+            - equals:
+                - "{{ status }}"
+                - "healthy"
+
+  # 缓存测试
+  - name: "缓存性能测试"
+    weight: 10
+    flow:
+      # 第一次请求（缓存未命中）
+      - post:
+          url: "/api/v1/calculate/compound-interest"
+          headers:
+            Content-Type: "application/json"
+            Cache-Control: "no-cache"
+          json:
+            principal: 10000
+            annual_rate: 4.0
+            years: 10
+            monthly_payment: 500
+            compound_frequency: "monthly"
+          expect:
+            - statusCode: 200
+          capture:
+            - header: "x-cache-status"
+              as: "cache_status_1"
+      
+      # 第二次相同请求（应该命中缓存）
+      - post:
+          url: "/api/v1/calculate/compound-interest"
+          headers:
+            Content-Type: "application/json"
+          json:
+            principal: 10000
+            annual_rate: 4.0
+            years: 10
+            monthly_payment: 500
+            compound_frequency: "monthly"
+          expect:
+            - statusCode: 200
+          capture:
+            - header: "x-cache-status"
+              as: "cache_status_2"
+
+# 自定义函数
+functions:
+  # 生成随机浮点数
+  randomFloat:
+    - "Math.random() * ({{ $2 }} - {{ $1 }}) + {{ $1 }}"
+  
+  # 生成随机整数
+  randomInt:
+    - "Math.floor(Math.random() * ({{ $2 }} - {{ $1 }} + 1)) + {{ $1 }}"
+
+# 报告配置
+reporting:
+  # 控制台输出
+  console:
+    - summary
+    - errors
+    - metrics
+  
+  # JSON报告
+  json:
+    output: "reports/performance/artillery-report.json"
+  
+  # HTML报告
+  html:
+    output: "reports/performance/artillery-report.html"

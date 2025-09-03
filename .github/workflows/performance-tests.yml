@@ -1,0 +1,462 @@
+name: Performance and Load Tests
+
+on:
+  schedule:
+    # 每天凌晨3点运行性能测试
+    - cron: '0 3 * * *'
+  
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of performance test'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - load-only
+          - lighthouse-only
+          - stress-only
+      
+      target_environment:
+        description: 'Target environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+
+  push:
+    branches: [ main ]
+    paths:
+      - 'tests/performance/**'
+      - '.github/workflows/performance-tests.yml'
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # 环境准备
+  setup:
+    name: 🏗️ Setup Performance Test Environment
+    runs-on: ubuntu-latest
+    
+    outputs:
+      api-url: ${{ steps.set-urls.outputs.api-url }}
+      frontend-url: ${{ steps.set-urls.outputs.frontend-url }}
+      test-duration: ${{ steps.set-config.outputs.duration }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set target URLs
+        id: set-urls
+        run: |
+          if [ "${{ github.event.inputs.target_environment }}" = "production" ]; then
+            echo "api-url=https://api.zinses-rechner.de" >> $GITHUB_OUTPUT
+            echo "frontend-url=https://zinses-rechner.de" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.target_environment }}" = "staging" ]; then
+            echo "api-url=https://staging-api.zinses-rechner.de" >> $GITHUB_OUTPUT
+            echo "frontend-url=https://staging.zinses-rechner.de" >> $GITHUB_OUTPUT
+          else
+            echo "api-url=http://localhost:8000" >> $GITHUB_OUTPUT
+            echo "frontend-url=http://localhost:5173" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set test configuration
+        id: set-config
+        run: |
+          if [ "${{ github.event.inputs.test_type }}" = "stress-only" ]; then
+            echo "duration=1800" >> $GITHUB_OUTPUT  # 30分钟压力测试
+          else
+            echo "duration=900" >> $GITHUB_OUTPUT   # 15分钟标准测试
+          fi
+
+      - name: Verify target availability
+        run: |
+          echo "验证目标环境可用性..."
+          
+          API_URL="${{ steps.set-urls.outputs.api-url }}"
+          FRONTEND_URL="${{ steps.set-urls.outputs.frontend-url }}"
+          
+          # 检查API健康状态
+          if curl -f -s "$API_URL/health" > /dev/null; then
+            echo "✅ API服务可用: $API_URL"
+          else
+            echo "❌ API服务不可用: $API_URL"
+            exit 1
+          fi
+          
+          # 检查前端可用性
+          if curl -f -s "$FRONTEND_URL" > /dev/null; then
+            echo "✅ 前端服务可用: $FRONTEND_URL"
+          else
+            echo "❌ 前端服务不可用: $FRONTEND_URL"
+            exit 1
+          fi
+
+  # API负载测试
+  api-load-tests:
+    name: 🚀 API Load Tests
+    runs-on: ubuntu-latest
+    needs: setup
+    if: github.event.inputs.test_type != 'lighthouse-only'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Artillery
+        run: npm install -g artillery
+
+      - name: Create reports directory
+        run: mkdir -p reports/performance/artillery
+
+      - name: Run API load tests
+        env:
+          API_BASE_URL: ${{ needs.setup.outputs.api-url }}
+          TEST_DURATION: ${{ needs.setup.outputs.test-duration }}
+        run: |
+          echo "🚀 运行API负载测试..."
+          echo "目标API: $API_BASE_URL"
+          echo "测试时长: $TEST_DURATION 秒"
+          
+          # 运行Artillery负载测试
+          artillery run tests/performance/artillery-load-test.yml \
+            --output reports/performance/artillery/load-test-results.json \
+            --config target="$API_BASE_URL"
+
+      - name: Generate Artillery HTML report
+        run: |
+          artillery report reports/performance/artillery/load-test-results.json \
+            --output reports/performance/artillery/load-test-report.html
+
+      - name: Analyze load test results
+        run: |
+          echo "📊 分析负载测试结果..."
+          
+          if [ -f "reports/performance/artillery/load-test-results.json" ]; then
+            # 提取关键指标
+            if command -v jq &> /dev/null; then
+              RESPONSE_TIME_P95=$(jq -r '.aggregate.latency.p95' reports/performance/artillery/load-test-results.json)
+              RPS=$(jq -r '.aggregate.rates.http_request_rate' reports/performance/artillery/load-test-results.json)
+              ERROR_RATE=$(jq -r '.aggregate.counters.errors // 0' reports/performance/artillery/load-test-results.json)
+              
+              echo "P95响应时间: ${RESPONSE_TIME_P95}ms"
+              echo "请求速率: ${RPS} RPS"
+              echo "错误数量: ${ERROR_RATE}"
+              
+              # 设置GitHub输出
+              echo "response-time-p95=$RESPONSE_TIME_P95" >> $GITHUB_OUTPUT
+              echo "rps=$RPS" >> $GITHUB_OUTPUT
+              echo "error-rate=$ERROR_RATE" >> $GITHUB_OUTPUT
+              
+              # 检查性能目标
+              if (( $(echo "$RESPONSE_TIME_P95 > 500" | bc -l) )); then
+                echo "::warning::API响应时间超标: ${RESPONSE_TIME_P95}ms > 500ms"
+              fi
+              
+              if (( $(echo "$RPS < 1000" | bc -l) )); then
+                echo "::warning::并发处理能力不足: ${RPS} RPS < 1000 RPS"
+              fi
+            fi
+          fi
+
+      - name: Upload Artillery reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: artillery-load-test-reports
+          path: reports/performance/artillery/
+          retention-days: 30
+
+  # 前端性能测试
+  frontend-performance-tests:
+    name: ⚡ Frontend Performance Tests
+    runs-on: ubuntu-latest
+    needs: setup
+    if: github.event.inputs.test_type != 'load-only' && github.event.inputs.test_type != 'stress-only'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli lighthouse
+
+      - name: Create reports directory
+        run: mkdir -p reports/performance/lighthouse
+
+      - name: Run Lighthouse performance audit
+        env:
+          FRONTEND_URL: ${{ needs.setup.outputs.frontend-url }}
+        run: |
+          echo "⚡ 运行前端性能测试..."
+          echo "目标URL: $FRONTEND_URL"
+          
+          # 桌面端性能测试
+          lighthouse "$FRONTEND_URL" \
+            --output=json \
+            --output=html \
+            --output-path=reports/performance/lighthouse/desktop-performance \
+            --preset=desktop \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
+            --throttling-method=devtools
+          
+          # 移动端性能测试
+          lighthouse "$FRONTEND_URL" \
+            --output=json \
+            --output=html \
+            --output-path=reports/performance/lighthouse/mobile-performance \
+            --preset=mobile \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
+            --throttling-method=devtools
+
+      - name: Analyze Lighthouse results
+        run: |
+          echo "📊 分析Lighthouse性能结果..."
+          
+          # 分析桌面端结果
+          if [ -f "reports/performance/lighthouse/desktop-performance.json" ]; then
+            DESKTOP_SCORE=$(jq -r '.categories.performance.score * 100' reports/performance/lighthouse/desktop-performance.json)
+            DESKTOP_LCP=$(jq -r '.audits["largest-contentful-paint"].numericValue' reports/performance/lighthouse/desktop-performance.json)
+            DESKTOP_FID=$(jq -r '.audits["max-potential-fid"].numericValue' reports/performance/lighthouse/desktop-performance.json)
+            DESKTOP_CLS=$(jq -r '.audits["cumulative-layout-shift"].numericValue' reports/performance/lighthouse/desktop-performance.json)
+            
+            echo "桌面端性能评分: ${DESKTOP_SCORE}/100"
+            echo "桌面端LCP: ${DESKTOP_LCP}ms"
+            echo "桌面端FID: ${DESKTOP_FID}ms"
+            echo "桌面端CLS: ${DESKTOP_CLS}"
+            
+            # 检查Core Web Vitals
+            if (( $(echo "$DESKTOP_LCP > 2500" | bc -l) )); then
+              echo "::warning::桌面端LCP超标: ${DESKTOP_LCP}ms > 2500ms"
+            fi
+          fi
+          
+          # 分析移动端结果
+          if [ -f "reports/performance/lighthouse/mobile-performance.json" ]; then
+            MOBILE_SCORE=$(jq -r '.categories.performance.score * 100' reports/performance/lighthouse/mobile-performance.json)
+            MOBILE_LCP=$(jq -r '.audits["largest-contentful-paint"].numericValue' reports/performance/lighthouse/mobile-performance.json)
+            
+            echo "移动端性能评分: ${MOBILE_SCORE}/100"
+            echo "移动端LCP: ${MOBILE_LCP}ms"
+            
+            if (( $(echo "$MOBILE_SCORE < 85" | bc -l) )); then
+              echo "::warning::移动端性能评分低于85分: ${MOBILE_SCORE}"
+            fi
+          fi
+
+      - name: Upload Lighthouse reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-performance-reports
+          path: reports/performance/lighthouse/
+          retention-days: 30
+
+  # 压力测试
+  stress-tests:
+    name: 💪 Stress Tests
+    runs-on: ubuntu-latest
+    needs: setup
+    if: github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'stress-only'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Artillery
+        run: npm install -g artillery
+
+      - name: Run stress tests
+        env:
+          API_BASE_URL: ${{ needs.setup.outputs.api-url }}
+        run: |
+          echo "💪 运行压力测试..."
+          
+          # 创建压力测试配置
+          cat > stress-test-config.yml << EOF
+          config:
+            target: '$API_BASE_URL'
+            phases:
+              - duration: 60
+                arrivalRate: 500
+              - duration: 120
+                arrivalRate: 1000
+              - duration: 180
+                arrivalRate: 1500
+              - duration: 120
+                arrivalRate: 2000
+              - duration: 60
+                arrivalRate: 2500
+          
+          scenarios:
+            - name: "压力测试"
+              flow:
+                - post:
+                    url: "/api/v1/calculate/compound-interest"
+                    json:
+                      principal: 10000
+                      annual_rate: 4.0
+                      years: 10
+                      monthly_payment: 500
+                      compound_frequency: "monthly"
+          EOF
+          
+          # 执行压力测试
+          artillery run stress-test-config.yml \
+            --output reports/stress-test-results.json
+
+      - name: Analyze stress test results
+        run: |
+          if [ -f "reports/stress-test-results.json" ]; then
+            MAX_RPS=$(jq -r '.aggregate.rates.http_request_rate' reports/stress-test-results.json)
+            ERROR_COUNT=$(jq -r '.aggregate.counters.errors // 0' reports/stress-test-results.json)
+            
+            echo "最大RPS: $MAX_RPS"
+            echo "错误总数: $ERROR_COUNT"
+            
+            if (( $(echo "$MAX_RPS < 1000" | bc -l) )); then
+              echo "::error::系统未达到最低RPS要求: $MAX_RPS < 1000"
+              exit 1
+            fi
+          fi
+
+  # 性能报告汇总
+  performance-summary:
+    name: 📊 Performance Summary
+    runs-on: ubuntu-latest
+    needs: [setup, api-load-tests, frontend-performance-tests, stress-tests]
+    if: always()
+    
+    steps:
+      - name: Download all performance artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: performance-artifacts
+
+      - name: Generate performance summary
+        run: |
+          echo "# 🚀 Zinses-Rechner 性能测试报告" > performance-summary.md
+          echo "" >> performance-summary.md
+          echo "**执行时间**: $(date)" >> performance-summary.md
+          echo "**目标环境**: ${{ github.event.inputs.target_environment || 'production' }}" >> performance-summary.md
+          echo "**测试类型**: ${{ github.event.inputs.test_type || 'full' }}" >> performance-summary.md
+          echo "" >> performance-summary.md
+          
+          echo "## 测试结果摘要" >> performance-summary.md
+          echo "- API负载测试: ${{ needs.api-load-tests.result }}" >> performance-summary.md
+          echo "- 前端性能测试: ${{ needs.frontend-performance-tests.result }}" >> performance-summary.md
+          echo "- 压力测试: ${{ needs.stress-tests.result }}" >> performance-summary.md
+          echo "" >> performance-summary.md
+          
+          echo "## 性能指标" >> performance-summary.md
+          echo "### 目标 vs 实际" >> performance-summary.md
+          echo "| 指标 | 目标 | 状态 |" >> performance-summary.md
+          echo "|------|------|------|" >> performance-summary.md
+          echo "| API响应时间 | < 500ms | ${{ needs.api-load-tests.result == 'success' && '✅ 达标' || '❌ 超标' }} |" >> performance-summary.md
+          echo "| 并发处理能力 | > 1000 RPS | ${{ needs.api-load-tests.result == 'success' && '✅ 达标' || '❌ 不足' }} |" >> performance-summary.md
+          echo "| 前端性能评分 | > 85分 | ${{ needs.frontend-performance-tests.result == 'success' && '✅ 达标' || '❌ 不足' }} |" >> performance-summary.md
+          echo "| 系统稳定性 | 无崩溃 | ${{ needs.stress-tests.result == 'success' && '✅ 稳定' || '❌ 不稳定' }} |" >> performance-summary.md
+          echo "" >> performance-summary.md
+          
+          if [ "${{ needs.api-load-tests.result }}" != "success" ] || 
+             [ "${{ needs.frontend-performance-tests.result }}" != "success" ] || 
+             [ "${{ needs.stress-tests.result }}" != "success" ]; then
+            echo "## ⚠️ 性能问题" >> performance-summary.md
+            echo "发现性能问题，建议立即优化：" >> performance-summary.md
+            echo "1. 检查API响应时间瓶颈" >> performance-summary.md
+            echo "2. 优化前端资源加载" >> performance-summary.md
+            echo "3. 调整缓存策略" >> performance-summary.md
+            echo "4. 监控系统资源使用" >> performance-summary.md
+            echo "" >> performance-summary.md
+          fi
+          
+          echo "## 📁 详细报告" >> performance-summary.md
+          echo "- Artillery负载测试: artillery-load-test-reports" >> performance-summary.md
+          echo "- Lighthouse性能报告: lighthouse-performance-reports" >> performance-summary.md
+          echo "- 性能仪表盘: tests/performance/performance-dashboard.html" >> performance-summary.md
+
+      - name: Upload performance summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-summary
+          path: performance-summary.md
+
+      - name: Comment PR with performance results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('performance-summary.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+
+  # 性能告警
+  performance-alerts:
+    name: 🚨 Performance Alerts
+    runs-on: ubuntu-latest
+    needs: [api-load-tests, frontend-performance-tests, stress-tests]
+    if: failure()
+    
+    steps:
+      - name: Send performance alert
+        run: |
+          echo "🚨 性能测试发现问题！"
+          
+          # 发送Slack通知
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data '{
+                "text": "🚨 Zinses-Rechner 性能测试告警",
+                "attachments": [
+                  {
+                    "color": "danger",
+                    "fields": [
+                      {
+                        "title": "环境",
+                        "value": "${{ github.event.inputs.target_environment || 'production' }}",
+                        "short": true
+                      },
+                      {
+                        "title": "测试类型",
+                        "value": "${{ github.event.inputs.test_type || 'full' }}",
+                        "short": true
+                      },
+                      {
+                        "title": "分支",
+                        "value": "${{ github.ref_name }}",
+                        "short": true
+                      }
+                    ],
+                    "footer": "性能监控系统",
+                    "ts": '${{ github.event.head_commit.timestamp }}'
+                  }
+                ]
+              }' \
+              ${{ secrets.SLACK_WEBHOOK_URL }}
+          fi

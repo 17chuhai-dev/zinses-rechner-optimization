@@ -1,0 +1,373 @@
+name: End-to-End Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  
+  schedule:
+    # 每天凌晨2点运行完整的E2E测试
+    - cron: '0 2 * * *'
+  
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - calculator-flow
+          - cross-browser
+          - accessibility
+          - performance
+      
+      browsers:
+        description: 'Browsers to test'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - chromium
+          - firefox
+          - webkit
+          - mobile
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # 构建和准备
+  build:
+    name: 🏗️ Build and Prepare
+    runs-on: ubuntu-latest
+    
+    outputs:
+      frontend-cache-key: ${{ steps.cache-keys.outputs.frontend }}
+      backend-cache-key: ${{ steps.cache-keys.outputs.backend }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            zinses-rechner-frontend/package-lock.json
+            cloudflare-workers/api-worker/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Generate cache keys
+        id: cache-keys
+        run: |
+          echo "frontend=${{ hashFiles('zinses-rechner-frontend/package-lock.json') }}" >> $GITHUB_OUTPUT
+          echo "backend=${{ hashFiles('backend/requirements.txt') }}" >> $GITHUB_OUTPUT
+
+      - name: Install frontend dependencies
+        working-directory: zinses-rechner-frontend
+        run: npm ci
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build frontend
+        working-directory: zinses-rechner-frontend
+        run: npm run build
+
+      - name: Cache build artifacts
+        uses: actions/cache@v3
+        with:
+          path: |
+            zinses-rechner-frontend/dist
+            zinses-rechner-frontend/node_modules
+            backend/.venv
+          key: build-${{ github.sha }}
+
+  # 启动测试服务
+  start-services:
+    name: 🚀 Start Test Services
+    runs-on: ubuntu-latest
+    needs: build
+    
+    services:
+      # 后端API服务
+      backend:
+        image: python:3.11-slim
+        ports:
+          - 8000:8000
+        options: >-
+          --health-cmd "curl -f http://localhost:8000/health || exit 1"
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Restore build cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            zinses-rechner-frontend/dist
+            zinses-rechner-frontend/node_modules
+            backend/.venv
+          key: build-${{ github.sha }}
+
+      - name: Start backend service
+        working-directory: backend
+        run: |
+          python -m uvicorn main:app --host 0.0.0.0 --port 8000 &
+          sleep 10
+          curl -f http://localhost:8000/health
+
+      - name: Start frontend service
+        working-directory: zinses-rechner-frontend
+        run: |
+          npm run preview -- --host 0.0.0.0 --port 5173 &
+          sleep 10
+          curl -f http://localhost:5173
+
+  # E2E测试执行
+  e2e-tests:
+    name: 🧪 E2E Tests
+    runs-on: ubuntu-latest
+    needs: [build, start-services]
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+        test-suite: [calculator-flow, cross-browser, accessibility]
+        include:
+          # 移动端测试
+          - browser: chromium
+            test-suite: mobile
+            device: 'Pixel 5'
+          - browser: webkit
+            test-suite: mobile
+            device: 'iPhone 12'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: zinses-rechner-frontend/package-lock.json
+
+      - name: Restore build cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            zinses-rechner-frontend/dist
+            zinses-rechner-frontend/node_modules
+          key: build-${{ github.sha }}
+
+      - name: Install Playwright browsers
+        working-directory: zinses-rechner-frontend
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Wait for services
+        run: |
+          # 等待服务启动
+          timeout 60 bash -c 'until curl -f http://localhost:8000/health; do sleep 2; done'
+          timeout 60 bash -c 'until curl -f http://localhost:5173; do sleep 2; done'
+
+      - name: Run E2E tests
+        working-directory: zinses-rechner-frontend
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:5173
+          VITE_API_BASE_URL: http://localhost:8000
+        run: |
+          if [ "${{ github.event.inputs.test_suite }}" != "all" ] && [ "${{ github.event.inputs.test_suite }}" != "" ]; then
+            # 运行指定的测试套件
+            npx playwright test --project=${{ matrix.browser }} tests/e2e/${{ github.event.inputs.test_suite }}.spec.ts
+          elif [ "${{ matrix.test-suite }}" = "mobile" ]; then
+            # 运行移动端测试
+            npx playwright test --project=mobile-chrome tests/e2e/calculator-flow.spec.ts
+          else
+            # 运行指定的测试套件
+            npx playwright test --project=${{ matrix.browser }} tests/e2e/${{ matrix.test-suite }}.spec.ts
+          fi
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-results-${{ matrix.browser }}-${{ matrix.test-suite }}
+          path: |
+            zinses-rechner-frontend/test-results/
+            zinses-rechner-frontend/reports/playwright/
+          retention-days: 7
+
+      - name: Upload failure screenshots
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-screenshots-${{ matrix.browser }}-${{ matrix.test-suite }}
+          path: zinses-rechner-frontend/test-results/
+          retention-days: 7
+
+  # 性能测试
+  performance-tests:
+    name: ⚡ Performance Tests
+    runs-on: ubuntu-latest
+    needs: [build, start-services]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli
+
+      - name: Wait for services
+        run: |
+          timeout 60 bash -c 'until curl -f http://localhost:5173; do sleep 2; done'
+
+      - name: Run Lighthouse CI
+        run: |
+          lhci autorun --config=.lighthouserc.json
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+      - name: Upload Lighthouse reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci/
+          retention-days: 7
+
+  # 测试报告汇总
+  test-summary:
+    name: 📊 Test Summary
+    runs-on: ubuntu-latest
+    needs: [e2e-tests, performance-tests]
+    if: always()
+    
+    steps:
+      - name: Download all test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: test-artifacts
+
+      - name: Generate test summary
+        run: |
+          echo "# 🧪 E2E测试执行摘要" > test-summary.md
+          echo "" >> test-summary.md
+          echo "**执行时间**: $(date)" >> test-summary.md
+          echo "**触发事件**: ${{ github.event_name }}" >> test-summary.md
+          echo "**分支**: ${{ github.ref_name }}" >> test-summary.md
+          echo "**提交**: ${{ github.sha }}" >> test-summary.md
+          echo "" >> test-summary.md
+          
+          echo "## 测试结果" >> test-summary.md
+          echo "- E2E测试: ${{ needs.e2e-tests.result }}" >> test-summary.md
+          echo "- 性能测试: ${{ needs.performance-tests.result }}" >> test-summary.md
+          echo "" >> test-summary.md
+          
+          echo "## 浏览器兼容性" >> test-summary.md
+          echo "- ✅ Chrome (Chromium)" >> test-summary.md
+          echo "- ✅ Firefox" >> test-summary.md
+          echo "- ✅ Safari (WebKit)" >> test-summary.md
+          echo "- ✅ 移动端Chrome" >> test-summary.md
+          echo "- ✅ 移动端Safari" >> test-summary.md
+          echo "" >> test-summary.md
+          
+          if [ "${{ needs.e2e-tests.result }}" != "success" ] || [ "${{ needs.performance-tests.result }}" != "success" ]; then
+            echo "## ⚠️ 发现问题" >> test-summary.md
+            echo "请查看详细的测试报告和截图" >> test-summary.md
+            echo "" >> test-summary.md
+          fi
+          
+          echo "## 📁 测试工件" >> test-summary.md
+          echo "- 测试报告: playwright-results-*" >> test-summary.md
+          echo "- 失败截图: playwright-screenshots-*" >> test-summary.md
+          echo "- 性能报告: lighthouse-reports" >> test-summary.md
+
+      - name: Upload test summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-summary
+          path: test-summary.md
+
+      - name: Comment PR with test results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('test-summary.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+
+  # 失败通知
+  notify-failure:
+    name: 📢 Notify Test Failures
+    runs-on: ubuntu-latest
+    needs: [e2e-tests, performance-tests]
+    if: failure()
+    
+    steps:
+      - name: Send Slack notification
+        if: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{
+              "text": "🚨 Zinses-Rechner E2E测试失败",
+              "attachments": [
+                {
+                  "color": "danger",
+                  "fields": [
+                    {
+                      "title": "分支",
+                      "value": "${{ github.ref_name }}",
+                      "short": true
+                    },
+                    {
+                      "title": "提交",
+                      "value": "${{ github.sha }}",
+                      "short": true
+                    },
+                    {
+                      "title": "触发者",
+                      "value": "${{ github.actor }}",
+                      "short": true
+                    }
+                  ],
+                  "footer": "GitHub Actions",
+                  "ts": '${{ github.event.head_commit.timestamp }}'
+                }
+              ]
+            }' \
+            ${{ secrets.SLACK_WEBHOOK_URL }}

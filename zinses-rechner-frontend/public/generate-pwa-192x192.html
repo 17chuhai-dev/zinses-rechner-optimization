@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Generate pwa-192x192.png</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; background: #f5f5f5; }
+        .icon { border: 2px solid #ddd; margin: 20px; display: inline-block; }
+        .instructions { background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px; }
+        button { background: #4F46E5; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 10px; }
+        button:hover { background: #3730A3; }
+    </style>
+</head>
+<body>
+    <h2>Zinses Rechner PWA Icon Generator</h2>
+    <div class="instructions">
+        <h3>生成 pwa-192x192.png (192x192)</h3>
+        <p>1. 右键点击下面的图标</p>
+        <p>2. 选择"另存为图片"或"Save image as"</p>
+        <p>3. 保存为: <strong>pwa-192x192.png</strong></p>
+        <p>4. 将文件移动到 public/ 目录</p>
+    </div>
+    
+    <div class="icon">
+        <svg width="192" height="192" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#4F46E5"/>
+        <stop offset="100%" style="stop-color:#7C3AED"/>
+      </linearGradient>
+    </defs>
+    <rect width="192" height="192" rx="28.799999999999997" fill="url(#grad)"/>
+    <rect x="38.400000000000006" y="38.400000000000006" width="115.19999999999999" height="115.19999999999999" rx="9.600000000000001" fill="white" opacity="0.9"/>
+    <rect x="48" y="48" width="96" height="28.799999999999997" rx="3.84" fill="#1F2937"/>
+    <text x="50%" y="60%" text-anchor="middle" fill="#4F46E5" font-family="Arial" font-size="23.04" font-weight="bold">ZR</text>
+  </svg>
+    </div>
+    
+    <div>
+        <button onclick="downloadSVG()">下载SVG</button>
+        <button onclick="copyToClipboard()">复制SVG代码</button>
+    </div>
+    
+    <script>
+        function downloadSVG() {
+            const svgData = `<svg width="192" height="192" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#4F46E5"/>
+        <stop offset="100%" style="stop-color:#7C3AED"/>
+      </linearGradient>
+    </defs>
+    <rect width="192" height="192" rx="28.799999999999997" fill="url(#grad)"/>
+    <rect x="38.400000000000006" y="38.400000000000006" width="115.19999999999999" height="115.19999999999999" rx="9.600000000000001" fill="white" opacity="0.9"/>
+    <rect x="48" y="48" width="96" height="28.799999999999997" rx="3.84" fill="#1F2937"/>
+    <text x="50%" y="60%" text-anchor="middle" fill="#4F46E5" font-family="Arial" font-size="23.04" font-weight="bold">ZR</text>
+  </svg>`;
+            const blob = new Blob([svgData], {type: 'image/svg+xml'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'pwa-192x192.svg';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function copyToClipboard() {
+            const svgData = `<svg width="192" height="192" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#4F46E5"/>
+        <stop offset="100%" style="stop-color:#7C3AED"/>
+      </linearGradient>
+    </defs>
+    <rect width="192" height="192" rx="28.799999999999997" fill="url(#grad)"/>
+    <rect x="38.400000000000006" y="38.400000000000006" width="115.19999999999999" height="115.19999999999999" rx="9.600000000000001" fill="white" opacity="0.9"/>
+    <rect x="48" y="48" width="96" height="28.799999999999997" rx="3.84" fill="#1F2937"/>
+    <text x="50%" y="60%" text-anchor="middle" fill="#4F46E5" font-family="Arial" font-size="23.04" font-weight="bold">ZR</text>
+  </svg>`;
+            navigator.clipboard.writeText(svgData).then(() => {
+                alert('SVG代码已复制到剪贴板！');
+            });
+        }
+        
+        // 自动转换为PNG的尝试
+        window.onload = function() {
+            const svg = document.querySelector('svg');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            canvas.width = 192;
+            canvas.height = 192;
+            
+            const svgBlob = new Blob([`<svg width="192" height="192" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#4F46E5"/>
+        <stop offset="100%" style="stop-color:#7C3AED"/>
+      </linearGradient>
+    </defs>
+    <rect width="192" height="192" rx="28.799999999999997" fill="url(#grad)"/>
+    <rect x="38.400000000000006" y="38.400000000000006" width="115.19999999999999" height="115.19999999999999" rx="9.600000000000001" fill="white" opacity="0.9"/>
+    <rect x="48" y="48" width="96" height="28.799999999999997" rx="3.84" fill="#1F2937"/>
+    <text x="50%" y="60%" text-anchor="middle" fill="#4F46E5" font-family="Arial" font-size="23.04" font-weight="bold">ZR</text>
+  </svg>`], {type: 'image/svg+xml;charset=utf-8'});
+            const url = URL.createObjectURL(svgBlob);
+            
+            img.onload = function() {
+                ctx.drawImage(img, 0, 0);
+                
+                // 创建下载链接
+                canvas.toBlob(function(blob) {
+                    const pngUrl = URL.createObjectURL(blob);
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.textContent = '下载PNG';
+                    downloadBtn.onclick = function() {
+                        const a = document.createElement('a');
+                        a.href = pngUrl;
+                        a.download = 'pwa-192x192.png';
+                        a.click();
+                    };
+                    document.body.appendChild(downloadBtn);
+                }, 'image/png');
+                
+                URL.revokeObjectURL(url);
+            };
+            
+            img.src = url;
+        };
+    </script>
+</body>
+</html>

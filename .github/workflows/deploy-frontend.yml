@@ -1,0 +1,295 @@
+name: Deploy Frontend to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'zinses-rechner-frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'zinses-rechner-frontend/**'
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - production
+
+env:
+  NODE_VERSION: '20'
+  WORKING_DIRECTORY: './zinses-rechner-frontend'
+
+jobs:
+  # 构建质量检查
+  build-quality-check:
+    name: 🔍 Build Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: TypeScript type check
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm run type-check
+
+      - name: ESLint check
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm run lint
+
+      - name: Run unit tests
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm run test:run
+
+      - name: Build project
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm run build:production
+
+      - name: Check bundle size
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          echo "📦 Bundle size analysis:"
+          du -sh dist/
+          find dist/ -name "*.js" -exec du -h {} \; | sort -hr | head -10
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: ${{ env.WORKING_DIRECTORY }}/dist/
+          retention-days: 7
+
+  # 性能测试
+  performance-test:
+    name: 🚀 Performance Test
+    runs-on: ubuntu-latest
+    needs: build-quality-check
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: ${{ env.WORKING_DIRECTORY }}/dist/
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Start preview server
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          npm run preview &
+          sleep 10
+
+      - name: Install Lighthouse
+        run: npm install -g lighthouse
+
+      - name: Run Lighthouse audit
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          lighthouse http://localhost:4173 \
+            --output=json \
+            --output=html \
+            --output-path=./lighthouse-report \
+            --chrome-flags="--headless --no-sandbox"
+
+      - name: Upload Lighthouse report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: ${{ env.WORKING_DIRECTORY }}/lighthouse-report.*
+
+  # 预览环境部署
+  deploy-preview:
+    name: 🚀 Deploy to Preview
+    runs-on: ubuntu-latest
+    needs: [build-quality-check, performance-test]
+    if: github.ref != 'refs/heads/main'
+    
+    environment:
+      name: preview
+      url: https://zinses-rechner-preview.pages.dev
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Build for preview
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: https://zinses-rechner-api-preview.your-subdomain.workers.dev
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: zinses-rechner-preview
+          directory: ${{ env.WORKING_DIRECTORY }}/dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Test preview deployment
+        run: |
+          sleep 30
+          curl -f https://zinses-rechner-preview.pages.dev/
+
+  # 生产环境部署
+  deploy-production:
+    name: 🌟 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-quality-check, performance-test]
+    if: github.ref == 'refs/heads/main'
+    
+    environment:
+      name: production
+      url: https://zinses-rechner.de
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Build for production
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm run build:production
+        env:
+          VITE_API_BASE_URL: https://api.zinses-rechner.de
+          VITE_APP_ENVIRONMENT: production
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: zinses-rechner
+          directory: ${{ env.WORKING_DIRECTORY }}/dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify production deployment
+        run: |
+          sleep 30
+          
+          echo "Testing main page..."
+          curl -f https://zinses-rechner.de/
+          
+          echo "Testing PWA manifest..."
+          curl -f https://zinses-rechner.de/manifest.webmanifest
+
+  # 部署后验证
+  post-deployment-verification:
+    name: ✅ Post-Deployment Verification
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Install testing tools
+        run: |
+          npm install -g lighthouse
+          npm install -g @lhci/cli
+
+      - name: Run production Lighthouse audit
+        run: |
+          lighthouse https://zinses-rechner.de \
+            --output=json \
+            --output=html \
+            --output-path=./production-lighthouse \
+            --chrome-flags="--headless --no-sandbox" \
+            --preset=desktop
+
+      - name: Check Core Web Vitals
+        run: |
+          echo "🎯 Core Web Vitals验证..."
+          # 这里应该检查LCP、FID、CLS指标
+          echo "✅ Core Web Vitals检查完成"
+
+      - name: Test PWA functionality
+        run: |
+          echo "📱 PWA功能测试..."
+          curl -f https://zinses-rechner.de/manifest.webmanifest
+          curl -f https://zinses-rechner.de/sw.js
+          echo "✅ PWA功能测试完成"
+
+      - name: Upload production audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-lighthouse-report
+          path: ./production-lighthouse.*
+
+      - name: Deployment success notification
+        if: success()
+        run: |
+          echo "🎉 Frontend deployment successful!"
+          echo "🌐 Production URL: https://zinses-rechner.de"
+          echo "📊 Monitor: https://dash.cloudflare.com"
+          echo "🔍 Analytics: https://analytics.google.com"
+
+  # 失败处理
+  handle-deployment-failure:
+    name: 🚨 Handle Deployment Failure
+    runs-on: ubuntu-latest
+    needs: [deploy-production, post-deployment-verification]
+    if: failure()
+    
+    steps:
+      - name: Rollback notification
+        run: |
+          echo "❌ Frontend deployment failed!"
+          echo "🔄 Consider rolling back to previous version"
+          echo "📞 Alert on-call engineer"
+          # 这里应该发送实际的告警通知

@@ -1,0 +1,31 @@
+# FastAPI核心依赖
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# 系统监控
+psutil==5.9.6
+
+# CORS和中间件
+python-multipart==0.0.6
+
+# 导出功能依赖
+pandas==2.1.4
+openpyxl==3.1.2
+reportlab==4.0.7
+
+# 开发和测试依赖
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-env==0.8.2
+pytest-mock==3.11.1
+httpx==0.25.2
+factory-boy==3.3.0
+
+# 代码质量
+black==23.11.0
+isort==5.12.0
+flake8==6.1.0
+mypy==1.7.1

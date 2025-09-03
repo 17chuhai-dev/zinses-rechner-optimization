@@ -1,0 +1,377 @@
+/**
+ * 打印样式
+ * 优化打印版本的布局和显示效果
+ */
+
+@media print {
+  /* 全局打印设置 */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body {
+    font-size: 12pt;
+    line-height: 1.4;
+    color: #000;
+    background: #fff;
+  }
+
+  /* 页面设置 */
+  @page {
+    size: A4;
+    margin: 2cm 1.5cm;
+    
+    @top-center {
+      content: "Zinseszins-Berechnung";
+      font-size: 14pt;
+      font-weight: bold;
+    }
+    
+    @bottom-right {
+      content: "Seite " counter(page) " von " counter(pages);
+      font-size: 10pt;
+    }
+    
+    @bottom-left {
+      content: "zinses-rechner.de";
+      font-size: 10pt;
+      color: #666;
+    }
+  }
+
+  /* 隐藏不需要打印的元素 */
+  .no-print,
+  .share-buttons,
+  .export-buttons,
+  nav,
+  header,
+  footer,
+  .sidebar,
+  .navigation,
+  button:not(.print-keep),
+  .tooltip,
+  .dropdown,
+  .modal,
+  .overlay {
+    display: none !important;
+  }
+
+  /* 显示仅打印元素 */
+  .print-only {
+    display: block !important;
+  }
+
+  /* 打印区域 */
+  .print-area {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* 标题样式 */
+  .print-title {
+    font-size: 18pt;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 20pt;
+    color: #000;
+  }
+
+  .print-subtitle {
+    font-size: 12pt;
+    text-align: center;
+    margin-bottom: 15pt;
+    color: #666;
+  }
+
+  /* 结果卡片 */
+  .result-card {
+    border: 1pt solid #ddd !important;
+    border-radius: 4pt;
+    padding: 10pt;
+    margin-bottom: 10pt;
+    background: #f9f9f9 !important;
+    page-break-inside: avoid;
+  }
+
+  .result-card h3 {
+    font-size: 14pt;
+    font-weight: bold;
+    margin-bottom: 5pt;
+    color: #000;
+  }
+
+  .result-card .value {
+    font-size: 16pt;
+    font-weight: bold;
+    color: #000;
+  }
+
+  /* 摘要表格 */
+  .summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20pt;
+    page-break-inside: avoid;
+  }
+
+  .summary-table th,
+  .summary-table td {
+    border: 1pt solid #ddd;
+    padding: 8pt;
+    text-align: left;
+  }
+
+  .summary-table th {
+    background: #f0f0f0 !important;
+    font-weight: bold;
+    font-size: 11pt;
+  }
+
+  .summary-table td {
+    font-size: 10pt;
+  }
+
+  /* 年度明细表格 */
+  .yearly-breakdown-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20pt;
+    font-size: 9pt;
+  }
+
+  .yearly-breakdown-table th,
+  .yearly-breakdown-table td {
+    border: 1pt solid #ddd;
+    padding: 6pt 4pt;
+    text-align: right;
+  }
+
+  .yearly-breakdown-table th {
+    background: #f0f0f0 !important;
+    font-weight: bold;
+    text-align: center;
+  }
+
+  .yearly-breakdown-table td:first-child,
+  .yearly-breakdown-table th:first-child {
+    text-align: center;
+  }
+
+  /* 图表容器 */
+  .chart-container {
+    page-break-inside: avoid;
+    margin: 15pt 0;
+    text-align: center;
+  }
+
+  .chart-container canvas {
+    max-width: 100% !important;
+    height: auto !important;
+    border: 1pt solid #ddd;
+  }
+
+  .chart-title {
+    font-size: 12pt;
+    font-weight: bold;
+    margin-bottom: 10pt;
+    text-align: center;
+  }
+
+  /* 公式展示 */
+  .formula-section {
+    border: 1pt solid #ddd;
+    padding: 15pt;
+    margin: 15pt 0;
+    background: #f9f9f9 !important;
+    page-break-inside: avoid;
+  }
+
+  .formula-section h3 {
+    font-size: 14pt;
+    font-weight: bold;
+    margin-bottom: 10pt;
+  }
+
+  .formula-display {
+    text-align: center;
+    font-size: 14pt;
+    margin: 10pt 0;
+  }
+
+  .parameter-explanation {
+    margin-top: 10pt;
+  }
+
+  .parameter {
+    display: flex;
+    margin-bottom: 5pt;
+    font-size: 10pt;
+  }
+
+  .parameter .symbol {
+    font-weight: bold;
+    width: 20pt;
+    margin-right: 10pt;
+  }
+
+  /* 洞察和建议 */
+  .insights-section {
+    border: 1pt solid #ddd;
+    padding: 15pt;
+    margin: 15pt 0;
+    background: #f9f9f9 !important;
+    page-break-inside: avoid;
+  }
+
+  .insights-section h4 {
+    font-size: 12pt;
+    font-weight: bold;
+    margin-bottom: 10pt;
+  }
+
+  .insight-item {
+    margin-bottom: 8pt;
+    font-size: 10pt;
+    line-height: 1.3;
+  }
+
+  .insight-item .icon {
+    display: inline-block;
+    width: 15pt;
+    margin-right: 5pt;
+  }
+
+  /* 免责声明 */
+  .disclaimer {
+    border-top: 1pt solid #ddd;
+    padding-top: 15pt;
+    margin-top: 20pt;
+    font-size: 9pt;
+    line-height: 1.3;
+    color: #666;
+    page-break-inside: avoid;
+  }
+
+  .disclaimer h5 {
+    font-size: 10pt;
+    font-weight: bold;
+    margin-bottom: 8pt;
+    color: #000;
+  }
+
+  /* 页面分隔 */
+  .page-break {
+    page-break-before: always;
+  }
+
+  .page-break-after {
+    page-break-after: always;
+  }
+
+  .avoid-break {
+    page-break-inside: avoid;
+  }
+
+  /* 网格布局调整 */
+  .print-grid {
+    display: block !important;
+  }
+
+  .print-grid > * {
+    display: block !important;
+    width: 100% !important;
+    margin-bottom: 10pt;
+  }
+
+  /* 响应式调整 */
+  .print-two-column {
+    column-count: 2;
+    column-gap: 20pt;
+    column-rule: 1pt solid #ddd;
+  }
+
+  .print-two-column > * {
+    break-inside: avoid;
+    margin-bottom: 10pt;
+  }
+
+  /* 特殊元素 */
+  .highlight-box {
+    border: 2pt solid #000 !important;
+    padding: 10pt;
+    margin: 10pt 0;
+    background: #f0f0f0 !important;
+  }
+
+  .warning-box {
+    border: 1pt solid #666;
+    border-left: 4pt solid #666;
+    padding: 10pt;
+    margin: 10pt 0;
+    background: #f9f9f9 !important;
+  }
+
+  /* 数字格式化 */
+  .currency {
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+  }
+
+  .percentage {
+    font-weight: bold;
+    color: #000;
+  }
+
+  /* 链接处理 */
+  a {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+
+  a:after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #666;
+  }
+
+  /* 隐藏装饰性元素 */
+  .decoration,
+  .animation,
+  .transition,
+  .shadow,
+  .gradient {
+    display: none !important;
+  }
+
+  /* 确保重要内容可见 */
+  .print-important {
+    font-weight: bold !important;
+    font-size: 12pt !important;
+    color: #000 !important;
+  }
+
+  /* 表格优化 */
+  table {
+    border-collapse: collapse !important;
+  }
+
+  th, td {
+    border: 1pt solid #ddd !important;
+    padding: 6pt !important;
+  }
+
+  /* 图标替换 */
+  .icon-success:before { content: "✓ "; }
+  .icon-warning:before { content: "⚠ "; }
+  .icon-info:before { content: "ℹ "; }
+  .icon-tip:before { content: "💡 "; }
+  .icon-money:before { content: "€ "; }
+  .icon-chart:before { content: "📊 "; }
+  .icon-time:before { content: "⏰ "; }
+}

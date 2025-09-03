@@ -1,0 +1,98 @@
+# Cloudflare Workers API配置文件
+# Zinses-Rechner API生产环境部署配置
+
+name = "zinses-rechner-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# 开发环境配置
+[env.development]
+name = "zinses-rechner-api-dev"
+[env.development.vars]
+ENVIRONMENT = "development"
+DEBUG = "true"
+CORS_ORIGIN = "http://localhost:5173"
+
+# 生产环境配置
+[env.production]
+name = "zinses-rechner-api-prod"
+routes = [
+  { pattern = "api.zinses-rechner.de/*", zone_name = "zinses-rechner.de" }
+]
+
+# 生产环境变量
+[env.production.vars]
+ENVIRONMENT = "production"
+DEBUG = "false"
+CORS_ORIGIN = "https://zinses-rechner.de"
+MAX_CALCULATION_YEARS = "50"
+MAX_PRINCIPAL_AMOUNT = "10000000"
+DEFAULT_TAX_RATE = "0.25"
+CACHE_TTL = "300"
+RATE_LIMIT_REQUESTS = "100"
+RATE_LIMIT_WINDOW = "900"
+
+# 数据库绑定
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "zinses-rechner-prod"
+database_id = "your-database-id"
+
+# KV存储绑定（用于缓存）
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "your-kv-namespace-id"
+
+# 分析绑定
+[env.production.analytics_engine_datasets]
+ANALYTICS = "your-analytics-dataset"
+
+# Durable Objects绑定（用于速率限制）
+[[env.production.durable_objects]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
+# 预览环境配置
+[env.preview]
+name = "zinses-rechner-api-preview"
+[env.preview.vars]
+ENVIRONMENT = "preview"
+DEBUG = "true"
+CORS_ORIGIN = "https://preview.zinses-rechner.de"
+
+# 开发服务器配置
+[dev]
+ip = "127.0.0.1"
+port = 8787
+local_protocol = "http"
+
+# 构建配置
+[build]
+command = "npm run build"
+cwd = "."
+
+# 触发器配置
+[[triggers]]
+crons = ["0 */6 * * *"]  # 每6小时运行健康检查和清理
+
+# 资源限制
+[limits]
+cpu_ms = 100
+memory_mb = 256
+
+# 兼容性设置
+compatibility_flags = [
+  "nodejs_compat",
+  "streams_enable_constructors",
+  "experimental_scheduler"
+]
+
+# 监控配置
+[observability]
+enabled = true
+
+# 安全配置
+[unsafe]
+bindings = []
+metadata = {}

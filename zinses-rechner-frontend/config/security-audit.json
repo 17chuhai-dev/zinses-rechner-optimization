@@ -1,0 +1,333 @@
+{
+  "name": "Zinses Rechner Security Audit Configuration",
+  "version": "1.0.0",
+  "description": "Security audit and vulnerability scanning configuration for German Financial Calculator",
+  "auditConfig": {
+    "enabled": true,
+    "schedule": "daily",
+    "reportFormat": "json",
+    "outputPath": "./security-reports",
+    "notifications": {
+      "email": ["security@zinses-rechner.de"],
+      "slack": "#security-alerts",
+      "webhook": "https://hooks.slack.com/services/..."
+    }
+  },
+  "vulnerabilityScanning": {
+    "dependencies": {
+      "enabled": true,
+      "tools": ["npm-audit", "snyk", "retire.js"],
+      "severity": ["high", "critical"],
+      "excludePatterns": [],
+      "autoFix": false,
+      "schedule": "daily"
+    },
+    "codeAnalysis": {
+      "enabled": true,
+      "tools": ["eslint-security", "semgrep", "sonarjs"],
+      "rules": [
+        "no-eval",
+        "no-implied-eval",
+        "no-new-func",
+        "no-script-url",
+        "detect-unsafe-regex",
+        "detect-buffer-noassert",
+        "detect-child-process",
+        "detect-disable-mustache-escape",
+        "detect-eval-with-expression",
+        "detect-no-csrf-before-method-override",
+        "detect-non-literal-fs-filename",
+        "detect-non-literal-regexp",
+        "detect-non-literal-require",
+        "detect-object-injection",
+        "detect-possible-timing-attacks",
+        "detect-pseudoRandomBytes"
+      ]
+    },
+    "containerScanning": {
+      "enabled": true,
+      "tools": ["trivy", "clair"],
+      "baseImages": ["node:18-alpine", "nginx:alpine"],
+      "severity": ["medium", "high", "critical"]
+    }
+  },
+  "securityHeaders": {
+    "validation": {
+      "enabled": true,
+      "tools": ["securityheaders.com", "observatory.mozilla.org"],
+      "requiredHeaders": [
+        "Strict-Transport-Security",
+        "Content-Security-Policy",
+        "X-Content-Type-Options",
+        "X-Frame-Options",
+        "X-XSS-Protection",
+        "Referrer-Policy",
+        "Permissions-Policy"
+      ],
+      "scoring": {
+        "minimum": 85,
+        "target": 95
+      }
+    }
+  },
+  "penetrationTesting": {
+    "automated": {
+      "enabled": true,
+      "tools": ["zap", "nuclei"],
+      "targets": [
+        "https://zinses-rechner.de",
+        "https://api.zinses-rechner.de"
+      ],
+      "schedule": "weekly",
+      "profiles": ["baseline", "full"]
+    },
+    "manual": {
+      "frequency": "quarterly",
+      "scope": [
+        "authentication",
+        "authorization",
+        "input-validation",
+        "session-management",
+        "data-protection",
+        "business-logic"
+      ]
+    }
+  },
+  "complianceChecks": {
+    "gdpr": {
+      "enabled": true,
+      "checks": [
+        "data-minimization",
+        "consent-management",
+        "right-to-erasure",
+        "data-portability",
+        "privacy-by-design",
+        "data-breach-notification"
+      ]
+    },
+    "pci": {
+      "enabled": false,
+      "level": "SAQ-A"
+    },
+    "iso27001": {
+      "enabled": true,
+      "controls": [
+        "A.8.2.1",
+        "A.8.2.2",
+        "A.8.2.3",
+        "A.12.6.1",
+        "A.14.1.3",
+        "A.14.2.1"
+      ]
+    }
+  },
+  "monitoring": {
+    "realtime": {
+      "enabled": true,
+      "events": [
+        "failed-login-attempts",
+        "privilege-escalation",
+        "data-access-anomalies",
+        "suspicious-network-activity",
+        "configuration-changes"
+      ],
+      "thresholds": {
+        "failed-logins": 5,
+        "data-access-rate": 100,
+        "error-rate": 10
+      }
+    },
+    "logging": {
+      "level": "info",
+      "retention": "90d",
+      "encryption": true,
+      "integrity": true,
+      "destinations": [
+        "local-file",
+        "syslog",
+        "elasticsearch"
+      ]
+    }
+  },
+  "incidentResponse": {
+    "enabled": true,
+    "playbooks": {
+      "data-breach": "./playbooks/data-breach.md",
+      "ddos-attack": "./playbooks/ddos-attack.md",
+      "malware-detection": "./playbooks/malware-detection.md",
+      "insider-threat": "./playbooks/insider-threat.md"
+    },
+    "contacts": {
+      "security-team": "security@zinses-rechner.de",
+      "legal-team": "legal@zinses-rechner.de",
+      "management": "management@zinses-rechner.de",
+      "external-consultant": "consultant@security-firm.de"
+    },
+    "escalation": {
+      "level1": "30m",
+      "level2": "2h",
+      "level3": "4h"
+    }
+  },
+  "securityTraining": {
+    "enabled": true,
+    "frequency": "quarterly",
+    "topics": [
+      "secure-coding-practices",
+      "phishing-awareness",
+      "password-security",
+      "social-engineering",
+      "data-protection",
+      "incident-response"
+    ],
+    "tracking": true,
+    "certification": false
+  },
+  "riskAssessment": {
+    "methodology": "NIST",
+    "frequency": "annually",
+    "categories": [
+      "technical",
+      "operational",
+      "management"
+    ],
+    "riskMatrix": {
+      "probability": ["very-low", "low", "medium", "high", "very-high"],
+      "impact": ["negligible", "minor", "moderate", "major", "catastrophic"]
+    },
+    "acceptanceThreshold": "medium"
+  },
+  "backupSecurity": {
+    "encryption": {
+      "enabled": true,
+      "algorithm": "AES-256",
+      "keyRotation": "monthly"
+    },
+    "integrity": {
+      "checksums": true,
+      "verification": "weekly"
+    },
+    "access": {
+      "authentication": "multi-factor",
+      "authorization": "role-based",
+      "logging": true
+    },
+    "testing": {
+      "frequency": "monthly",
+      "scenarios": ["full-restore", "partial-restore", "point-in-time"]
+    }
+  },
+  "thirdPartyRisk": {
+    "assessment": {
+      "enabled": true,
+      "frequency": "annually",
+      "criteria": [
+        "security-certifications",
+        "data-handling-practices",
+        "incident-history",
+        "compliance-status",
+        "financial-stability"
+      ]
+    },
+    "monitoring": {
+      "continuous": true,
+      "alerts": [
+        "security-incidents",
+        "compliance-violations",
+        "service-disruptions"
+      ]
+    },
+    "contracts": {
+      "securityClauses": true,
+      "dataProcessingAgreements": true,
+      "rightToAudit": true,
+      "incidentNotification": "24h"
+    }
+  },
+  "secureDevOps": {
+    "pipeline": {
+      "staticAnalysis": true,
+      "dependencyScanning": true,
+      "secretScanning": true,
+      "containerScanning": true,
+      "dynamicTesting": true
+    },
+    "deployment": {
+      "immutableInfrastructure": true,
+      "secretsManagement": "vault",
+      "accessControl": "rbac",
+      "auditLogging": true
+    },
+    "monitoring": {
+      "runtimeProtection": true,
+      "anomalyDetection": true,
+      "threatIntelligence": true
+    }
+  },
+  "dataClassification": {
+    "levels": [
+      {
+        "name": "public",
+        "description": "Information that can be freely shared",
+        "handling": "standard"
+      },
+      {
+        "name": "internal",
+        "description": "Information for internal use only",
+        "handling": "controlled"
+      },
+      {
+        "name": "confidential",
+        "description": "Sensitive business information",
+        "handling": "restricted"
+      },
+      {
+        "name": "restricted",
+        "description": "Highly sensitive information",
+        "handling": "highly-restricted"
+      }
+    ],
+    "automaticClassification": true,
+    "labelingRequired": true,
+    "retentionPolicies": true
+  },
+  "cryptography": {
+    "standards": {
+      "symmetric": "AES-256-GCM",
+      "asymmetric": "RSA-4096",
+      "hashing": "SHA-256",
+      "keyDerivation": "PBKDF2"
+    },
+    "keyManagement": {
+      "rotation": "quarterly",
+      "escrow": true,
+      "hardware": "hsm",
+      "access": "multi-person"
+    },
+    "implementation": {
+      "libraries": ["crypto-js", "node-forge"],
+      "validation": "fips-140-2",
+      "randomness": "csprng"
+    }
+  },
+  "reporting": {
+    "dashboards": {
+      "executive": "monthly",
+      "technical": "weekly",
+      "operational": "daily"
+    },
+    "metrics": [
+      "vulnerability-count",
+      "patch-compliance",
+      "security-incidents",
+      "training-completion",
+      "audit-findings",
+      "risk-score"
+    ],
+    "automation": {
+      "generation": true,
+      "distribution": true,
+      "archival": true
+    }
+  }
+}

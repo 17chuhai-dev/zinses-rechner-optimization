@@ -1,0 +1,127 @@
+{
+  "ci": {
+    "collect": {
+      "url": [
+        "http://localhost:5173/",
+        "http://localhost:5173/?principal=10000&rate=4&years=10"
+      ],
+      "startServerCommand": "npm run preview",
+      "startServerReadyPattern": "Local:.*http://localhost:5173",
+      "startServerReadyTimeout": 30000,
+      "numberOfRuns": 3,
+      "settings": {
+        "preset": "desktop",
+        "chromeFlags": "--no-sandbox --disable-dev-shm-usage",
+        "emulatedFormFactor": "desktop",
+        "throttling": {
+          "rttMs": 40,
+          "throughputKbps": 10240,
+          "cpuSlowdownMultiplier": 1,
+          "requestLatencyMs": 0,
+          "downloadThroughputKbps": 0,
+          "uploadThroughputKbps": 0
+        },
+        "screenEmulation": {
+          "mobile": false,
+          "width": 1920,
+          "height": 1080,
+          "deviceScaleFactor": 1,
+          "disabled": false
+        }
+      }
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": ["error", {"minScore": 0.85}],
+        "categories:accessibility": ["error", {"minScore": 0.95}],
+        "categories:best-practices": ["error", {"minScore": 0.90}],
+        "categories:seo": ["error", {"minScore": 0.90}],
+        "categories:pwa": ["warn", {"minScore": 0.80}]
+      }
+    },
+    "upload": {
+      "target": "temporary-public-storage",
+      "githubAppToken": "$LHCI_GITHUB_APP_TOKEN"
+    },
+    "server": {
+      "port": 9001,
+      "storage": {
+        "storageMethod": "sql",
+        "sqlDialect": "sqlite",
+        "sqlDatabasePath": "./lighthouse-ci.db"
+      }
+    }
+  },
+  "puppeteerScript": "./tests/lighthouse/custom-audit.js",
+  "budgets": [
+    {
+      "path": "/*",
+      "timings": [
+        {
+          "metric": "first-contentful-paint",
+          "budget": 2000
+        },
+        {
+          "metric": "largest-contentful-paint", 
+          "budget": 3000
+        },
+        {
+          "metric": "cumulative-layout-shift",
+          "budget": 0.1
+        },
+        {
+          "metric": "total-blocking-time",
+          "budget": 300
+        },
+        {
+          "metric": "speed-index",
+          "budget": 3000
+        }
+      ],
+      "resourceSizes": [
+        {
+          "resourceType": "script",
+          "budget": 300
+        },
+        {
+          "resourceType": "stylesheet",
+          "budget": 50
+        },
+        {
+          "resourceType": "image",
+          "budget": 200
+        },
+        {
+          "resourceType": "font",
+          "budget": 100
+        },
+        {
+          "resourceType": "total",
+          "budget": 800
+        }
+      ],
+      "resourceCounts": [
+        {
+          "resourceType": "script",
+          "budget": 10
+        },
+        {
+          "resourceType": "stylesheet",
+          "budget": 5
+        },
+        {
+          "resourceType": "image",
+          "budget": 20
+        },
+        {
+          "resourceType": "font",
+          "budget": 3
+        },
+        {
+          "resourceType": "total",
+          "budget": 50
+        }
+      ]
+    }
+  ]
+}

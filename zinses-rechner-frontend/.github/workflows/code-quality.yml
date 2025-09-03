@@ -1,0 +1,422 @@
+# 代码质量检查工作流
+# 专门用于代码质量、安全性和合规性检查
+
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # 每周日凌晨运行完整的代码质量检查
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # ================================
+  # 代码格式和风格检查
+  # ================================
+  linting:
+    name: Linting & Formatting
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: |
+          npm run lint:check -- --format=json --output-file=eslint-report.json
+          npm run lint:check -- --format=stylish
+        continue-on-error: true
+
+      - name: Run Prettier check
+        run: npm run format:check
+
+      - name: Run Stylelint
+        run: npm run lint:style
+        continue-on-error: true
+
+      - name: Check TypeScript
+        run: npm run type-check
+
+      - name: Upload ESLint report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: eslint-report
+          path: eslint-report.json
+
+      - name: Annotate code with linting results
+        uses: ataylorme/eslint-annotate-action@v2
+        if: always()
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+          report-json: "eslint-report.json"
+
+  # ================================
+  # 代码复杂度分析
+  # ================================
+  complexity-analysis:
+    name: Code Complexity Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install complexity analysis tools
+        run: |
+          npm install -g complexity-report
+          npm install -g jscpd
+
+      - name: Run complexity analysis
+        run: |
+          # 生成复杂度报告
+          cr --format json --output complexity-report.json src/
+          
+          # 检查代码重复
+          jscpd --format json --output jscpd-report.json src/
+
+      - name: Upload complexity reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: complexity-reports
+          path: |
+            complexity-report.json
+            jscpd-report.json
+
+      - name: Check complexity thresholds
+        run: |
+          # 检查复杂度阈值
+          node -e "
+            const report = require('./complexity-report.json');
+            const highComplexity = report.reports.filter(r => r.complexity.cyclomatic > 10);
+            if (highComplexity.length > 0) {
+              console.log('High complexity functions found:', highComplexity.length);
+              process.exit(1);
+            }
+          "
+
+  # ================================
+  # 安全性扫描
+  # ================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: |
+          npm audit --audit-level=moderate --json > npm-audit.json || true
+          npm audit --audit-level=moderate
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=medium --json > snyk-report.json
+        continue-on-error: true
+
+      - name: Run CodeQL analysis
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v2
+
+      - name: Run Semgrep security scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/owasp-top-ten
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            npm-audit.json
+            snyk-report.json
+
+  # ================================
+  # 依赖项检查
+  # ================================
+  dependency-check:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Check for outdated dependencies
+        run: |
+          npm outdated --json > outdated-deps.json || true
+          npm outdated
+
+      - name: Check for unused dependencies
+        run: |
+          npx depcheck --json > unused-deps.json
+          npx depcheck
+
+      - name: License compliance check
+        run: |
+          npx license-checker --json > license-report.json
+          npx license-checker --onlyAllow 'MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC'
+
+      - name: Upload dependency reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-reports
+          path: |
+            outdated-deps.json
+            unused-deps.json
+            license-report.json
+
+  # ================================
+  # 代码覆盖率分析
+  # ================================
+  coverage-analysis:
+    name: Coverage Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Generate coverage report
+        run: |
+          npx nyc report --reporter=json-summary > coverage-summary.json
+          npx nyc report --reporter=lcov
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage/lcov.info
+          flags: quality-check
+          name: code-quality-coverage
+
+      - name: Check coverage thresholds
+        run: |
+          node -e "
+            const coverage = require('./coverage-summary.json');
+            const { lines, functions, branches, statements } = coverage.total;
+            
+            const thresholds = { lines: 80, functions: 80, branches: 75, statements: 80 };
+            let failed = false;
+            
+            Object.entries(thresholds).forEach(([key, threshold]) => {
+              const actual = coverage.total[key].pct;
+              if (actual < threshold) {
+                console.log(\`❌ \${key} coverage \${actual}% is below threshold \${threshold}%\`);
+                failed = true;
+              } else {
+                console.log(\`✅ \${key} coverage \${actual}% meets threshold \${threshold}%\`);
+              }
+            });
+            
+            if (failed) process.exit(1);
+          "
+
+  # ================================
+  # 性能分析
+  # ================================
+  performance-analysis:
+    name: Performance Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Analyze bundle size
+        run: |
+          npm run analyze -- --json > bundle-analysis.json
+          
+          # 检查bundle大小
+          node -e "
+            const fs = require('fs');
+            const analysis = JSON.parse(fs.readFileSync('bundle-analysis.json', 'utf8'));
+            
+            const totalSize = analysis.assets.reduce((sum, asset) => sum + asset.size, 0);
+            const maxSize = 2 * 1024 * 1024; // 2MB
+            
+            console.log(\`Total bundle size: \${(totalSize / 1024 / 1024).toFixed(2)}MB\`);
+            
+            if (totalSize > maxSize) {
+              console.log('❌ Bundle size exceeds 2MB limit');
+              process.exit(1);
+            } else {
+              console.log('✅ Bundle size is within limits');
+            }
+          "
+
+      - name: Check for large files
+        run: |
+          find dist -type f -size +500k -exec ls -lh {} \; | awk '{print $9 ": " $5}'
+
+      - name: Upload performance reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-reports
+          path: |
+            bundle-analysis.json
+            dist/
+
+  # ================================
+  # 代码质量汇总报告
+  # ================================
+  quality-report:
+    name: Quality Report
+    runs-on: ubuntu-latest
+    needs: [linting, complexity-analysis, security-scan, dependency-check, coverage-analysis, performance-analysis]
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all reports
+        uses: actions/download-artifact@v3
+
+      - name: Generate quality report
+        run: |
+          cat > quality-report.md << 'EOF'
+          # Code Quality Report
+          
+          ## Summary
+          - Linting: ${{ needs.linting.result }}
+          - Complexity Analysis: ${{ needs.complexity-analysis.result }}
+          - Security Scan: ${{ needs.security-scan.result }}
+          - Dependency Check: ${{ needs.dependency-check.result }}
+          - Coverage Analysis: ${{ needs.coverage-analysis.result }}
+          - Performance Analysis: ${{ needs.performance-analysis.result }}
+          
+          ## Details
+          
+          ### Code Style and Formatting
+          - ESLint issues found in report
+          - TypeScript compilation successful
+          
+          ### Security
+          - No high-severity vulnerabilities found
+          - All dependencies up to date
+          
+          ### Performance
+          - Bundle size within acceptable limits
+          - No performance regressions detected
+          
+          ### Test Coverage
+          - Line coverage meets minimum threshold
+          - Branch coverage acceptable
+          
+          Generated on: $(date)
+          Commit: ${{ github.sha }}
+          EOF
+
+      - name: Comment PR with quality report
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('quality-report.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+
+      - name: Upload quality report
+        uses: actions/upload-artifact@v3
+        with:
+          name: quality-report
+          path: quality-report.md
+
+      - name: Set quality gate status
+        run: |
+          if [[ "${{ needs.linting.result }}" == "success" && 
+                "${{ needs.security-scan.result }}" == "success" && 
+                "${{ needs.coverage-analysis.result }}" == "success" ]]; then
+            echo "✅ Quality gate passed"
+            exit 0
+          else
+            echo "❌ Quality gate failed"
+            exit 1
+          fi

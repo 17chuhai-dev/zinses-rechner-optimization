@@ -1,0 +1,338 @@
+name: Domain and SSL Monitoring
+
+on:
+  schedule:
+    # 每天早上8点检查SSL证书
+    - cron: '0 8 * * *'
+    # 每4小时检查域名健康状态
+    - cron: '0 */4 * * *'
+  
+  workflow_dispatch:
+    inputs:
+      check_type:
+        description: 'Type of check to perform'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - ssl-only
+          - dns-only
+          - performance-only
+
+  push:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+      - '.github/workflows/domain-monitoring.yml'
+
+env:
+  DOMAINS: 'zinses-rechner.de,www.zinses-rechner.de,api.zinses-rechner.de,monitoring.zinses-rechner.de'
+
+jobs:
+  # DNS解析检查
+  dns-check:
+    name: 🌐 DNS Resolution Check
+    runs-on: ubuntu-latest
+    if: github.event.inputs.check_type != 'ssl-only' && github.event.inputs.check_type != 'performance-only'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install DNS tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dnsutils
+
+      - name: Check DNS resolution
+        run: |
+          echo "🔍 检查DNS解析状态..."
+          
+          IFS=',' read -ra DOMAIN_ARRAY <<< "$DOMAINS"
+          
+          for domain in "${DOMAIN_ARRAY[@]}"; do
+            echo "检查域名: $domain"
+            
+            # A记录检查
+            A_RECORD=$(dig +short "$domain" A)
+            if [ -n "$A_RECORD" ]; then
+              echo "✅ $domain A记录: $A_RECORD"
+            else
+              echo "❌ $domain A记录解析失败"
+            fi
+            
+            # CNAME记录检查
+            CNAME_RECORD=$(dig +short "$domain" CNAME)
+            if [ -n "$CNAME_RECORD" ]; then
+              echo "✅ $domain CNAME记录: $CNAME_RECORD"
+            fi
+            
+            echo ""
+          done
+
+      - name: Check nameservers
+        run: |
+          echo "🔍 检查Nameservers..."
+          dig +short zinses-rechner.de NS
+
+  # SSL证书检查
+  ssl-check:
+    name: 🔒 SSL Certificate Check
+    runs-on: ubuntu-latest
+    if: github.event.inputs.check_type != 'dns-only' && github.event.inputs.check_type != 'performance-only'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check SSL certificates
+        run: |
+          echo "🔒 检查SSL证书状态..."
+          
+          IFS=',' read -ra DOMAIN_ARRAY <<< "$DOMAINS"
+          
+          for domain in "${DOMAIN_ARRAY[@]}"; do
+            echo "检查SSL证书: $domain"
+            
+            # 获取证书信息
+            CERT_INFO=$(echo | timeout 10 openssl s_client -servername "$domain" -connect "$domain:443" 2>/dev/null | \
+                       openssl x509 -noout -dates -subject -issuer 2>/dev/null)
+            
+            if [ $? -eq 0 ] && [ -n "$CERT_INFO" ]; then
+              echo "✅ $domain SSL证书有效"
+              
+              # 检查到期时间
+              EXPIRY_DATE=$(echo "$CERT_INFO" | grep "notAfter" | cut -d= -f2)
+              if [ -n "$EXPIRY_DATE" ]; then
+                EXPIRY_TIMESTAMP=$(date -d "$EXPIRY_DATE" +%s 2>/dev/null)
+                CURRENT_TIMESTAMP=$(date +%s)
+                DAYS_UNTIL_EXPIRY=$(( (EXPIRY_TIMESTAMP - CURRENT_TIMESTAMP) / 86400 ))
+                
+                if [ "$DAYS_UNTIL_EXPIRY" -gt 30 ]; then
+                  echo "✅ 证书有效期: $DAYS_UNTIL_EXPIRY 天"
+                elif [ "$DAYS_UNTIL_EXPIRY" -gt 7 ]; then
+                  echo "⚠️ 证书即将到期: $DAYS_UNTIL_EXPIRY 天"
+                else
+                  echo "🚨 证书即将到期: $DAYS_UNTIL_EXPIRY 天"
+                  echo "::warning::SSL certificate for $domain expires in $DAYS_UNTIL_EXPIRY days"
+                fi
+              fi
+              
+              # 显示证书详情
+              echo "$CERT_INFO" | sed 's/^/  /'
+            else
+              echo "❌ $domain SSL证书检查失败"
+              echo "::error::SSL certificate check failed for $domain"
+            fi
+            
+            echo ""
+          done
+
+      - name: SSL certificate expiry notification
+        if: failure()
+        run: |
+          echo "🚨 SSL证书检查发现问题！"
+          echo "请检查上述输出并及时更新证书"
+
+  # 性能和可用性检查
+  performance-check:
+    name: ⚡ Performance and Availability Check
+    runs-on: ubuntu-latest
+    if: github.event.inputs.check_type != 'dns-only' && github.event.inputs.check_type != 'ssl-only'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install performance tools
+        run: |
+          npm install -g lighthouse
+          sudo apt-get install -y curl
+
+      - name: Check domain accessibility
+        run: |
+          echo "🌐 检查域名可访问性..."
+          
+          IFS=',' read -ra DOMAIN_ARRAY <<< "$DOMAINS"
+          
+          for domain in "${DOMAIN_ARRAY[@]}"; do
+            echo "测试域名: $domain"
+            
+            # HTTP状态检查
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://$domain" || echo "000")
+            RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}' --max-time 10 "https://$domain" 2>/dev/null || echo "timeout")
+            
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ $domain 访问正常 (状态码: $HTTP_STATUS)"
+              
+              if [ "$RESPONSE_TIME" != "timeout" ]; then
+                RESPONSE_TIME_MS=$(echo "$RESPONSE_TIME * 1000" | bc 2>/dev/null || echo "0")
+                echo "⚡ 响应时间: ${RESPONSE_TIME_MS}ms"
+                
+                # 性能评估
+                if (( $(echo "$RESPONSE_TIME_MS < 1000" | bc -l 2>/dev/null || echo "0") )); then
+                  echo "🚀 性能评级: 优秀"
+                elif (( $(echo "$RESPONSE_TIME_MS < 2000" | bc -l 2>/dev/null || echo "0") )); then
+                  echo "👍 性能评级: 良好"
+                else
+                  echo "⚠️ 性能评级: 需要优化"
+                fi
+              fi
+            else
+              echo "❌ $domain 访问异常 (状态码: $HTTP_STATUS)"
+              echo "::error::Domain $domain is not accessible (HTTP $HTTP_STATUS)"
+            fi
+            
+            echo ""
+          done
+
+      - name: Test HTTPS redirect
+        run: |
+          echo "🔄 测试HTTPS重定向..."
+          
+          # 只测试主域名的HTTP重定向
+          MAIN_DOMAINS=("zinses-rechner.de" "www.zinses-rechner.de")
+          
+          for domain in "${MAIN_DOMAINS[@]}"; do
+            echo "测试HTTP重定向: $domain"
+            
+            REDIRECT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 10 "http://$domain" || echo "000")
+            FINAL_URL=$(curl -s -o /dev/null -w "%{url_effective}" -L --max-time 10 "http://$domain" || echo "")
+            
+            if [[ "$FINAL_URL" == "https://"* ]]; then
+              echo "✅ $domain HTTPS重定向正常"
+            else
+              echo "❌ $domain HTTPS重定向异常"
+              echo "::warning::HTTPS redirect may not be working for $domain"
+            fi
+          done
+
+      - name: Run Lighthouse audit on main domain
+        run: |
+          echo "🔍 运行Lighthouse性能审计..."
+          
+          lighthouse https://zinses-rechner.de \
+            --output=json \
+            --output=html \
+            --output-path=./lighthouse-domain-audit \
+            --chrome-flags="--headless --no-sandbox" \
+            --preset=desktop \
+            --quiet
+
+      - name: Upload Lighthouse report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-domain-audit
+          path: ./lighthouse-domain-audit.*
+
+  # 安全检查
+  security-check:
+    name: 🛡️ Security Headers Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check security headers
+        run: |
+          echo "🛡️ 检查安全头配置..."
+          
+          MAIN_DOMAIN="zinses-rechner.de"
+          
+          echo "检查域名: $MAIN_DOMAIN"
+          HEADERS=$(curl -I -s --max-time 10 "https://$MAIN_DOMAIN" 2>/dev/null || echo "")
+          
+          # 检查关键安全头
+          if echo "$HEADERS" | grep -qi "strict-transport-security"; then
+            echo "✅ HSTS头存在"
+          else
+            echo "❌ HSTS头缺失"
+            echo "::warning::HSTS header missing for $MAIN_DOMAIN"
+          fi
+          
+          if echo "$HEADERS" | grep -qi "x-content-type-options"; then
+            echo "✅ X-Content-Type-Options头存在"
+          else
+            echo "❌ X-Content-Type-Options头缺失"
+          fi
+          
+          if echo "$HEADERS" | grep -qi "x-frame-options"; then
+            echo "✅ X-Frame-Options头存在"
+          else
+            echo "❌ X-Frame-Options头缺失"
+          fi
+          
+          if echo "$HEADERS" | grep -qi "content-security-policy"; then
+            echo "✅ CSP头存在"
+          else
+            echo "❌ CSP头缺失"
+          fi
+
+  # 综合报告
+  generate-report:
+    name: 📊 Generate Monitoring Report
+    runs-on: ubuntu-latest
+    needs: [dns-check, ssl-check, performance-check, security-check]
+    if: always()
+    
+    steps:
+      - name: Generate comprehensive report
+        run: |
+          echo "📊 生成域名监控综合报告..."
+          
+          cat > domain-monitoring-report.md << EOF
+          # Zinses-Rechner域名监控报告
+          
+          **生成时间**: $(date)
+          **检查类型**: ${GITHUB_EVENT_NAME}
+          
+          ## 检查结果摘要
+          - DNS解析检查: ${{ needs.dns-check.result }}
+          - SSL证书检查: ${{ needs.ssl-check.result }}
+          - 性能检查: ${{ needs.performance-check.result }}
+          - 安全检查: ${{ needs.security-check.result }}
+          
+          ## 域名列表
+          $(echo "$DOMAINS" | tr ',' '\n' | sed 's/^/- /')
+          
+          ## 建议操作
+          $(if [ "${{ needs.ssl-check.result }}" != "success" ]; then echo "- 检查SSL证书状态"; fi)
+          $(if [ "${{ needs.performance-check.result }}" != "success" ]; then echo "- 优化域名性能"; fi)
+          $(if [ "${{ needs.security-check.result }}" != "success" ]; then echo "- 配置安全头"; fi)
+          
+          ## 下次检查
+          - 定期检查: 每4小时
+          - SSL检查: 每天早上8点
+          EOF
+          
+          echo "📄 报告已生成"
+
+      - name: Upload monitoring report
+        uses: actions/upload-artifact@v4
+        with:
+          name: domain-monitoring-report
+          path: domain-monitoring-report.md
+
+  # 失败通知
+  notify-issues:
+    name: 📢 Notify Domain Issues
+    runs-on: ubuntu-latest
+    needs: [dns-check, ssl-check, performance-check, security-check]
+    if: failure()
+    
+    steps:
+      - name: Send failure notification
+        run: |
+          echo "🚨 域名监控发现问题！"
+          echo "请检查以下方面："
+          echo "- DNS解析状态"
+          echo "- SSL证书有效性"
+          echo "- 域名可访问性"
+          echo "- 安全配置"
+          
+          # 这里应该发送实际的通知（Slack、邮件等）
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data '{"text":"🚨 Zinses-Rechner域名监控发现问题，请立即检查！"}' \
+              "${{ secrets.SLACK_WEBHOOK_URL }}" || true
+          fi
