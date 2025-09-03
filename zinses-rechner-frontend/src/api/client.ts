@@ -165,7 +165,7 @@ class ApiClient {
   /**
    * 执行HTTP请求（带重试逻辑）
    */
-  private async executeRequest<T>(
+  private async executeRequest<T extends Record<string, unknown> | string | null>(
     url: string,
     config: ApiRequestConfig,
     retriesLeft: number
@@ -180,9 +180,9 @@ class ApiClient {
         if (config.contentType === CONTENT_TYPES.JSON) {
           body = JSON.stringify(config.body)
         } else if (config.contentType === CONTENT_TYPES.FORM_DATA) {
-          body = config.body instanceof FormData ? config.body : this.objectToFormData(config.body)
+          body = config.body instanceof FormData ? config.body : this.objectToFormData(config.body as Record<string, unknown>)
         } else {
-          body = config.body
+          body = typeof config.body === 'string' ? config.body : JSON.stringify(config.body)
         }
       }
 
@@ -202,7 +202,7 @@ class ApiClient {
       // 应用响应拦截器
       let finalResponse = apiResponse
       for (const interceptor of this.responseInterceptors) {
-        finalResponse = interceptor(finalResponse)
+        finalResponse = interceptor(finalResponse) as ApiResponse<T>
       }
 
       return finalResponse
@@ -221,7 +221,7 @@ class ApiClient {
   /**
    * 处理HTTP响应
    */
-  private async processResponse<T>(response: Response): Promise<ApiResponse<T>> {
+  private async processResponse<T extends Record<string, unknown> | string | null>(response: Response): Promise<ApiResponse<T>> {
     const success = response.ok
     let data: T
 
@@ -230,19 +230,20 @@ class ApiClient {
       if (contentType?.includes('application/json')) {
         data = await response.json()
       } else {
-        data = await response.text() as unknown
+        data = await response.text() as T
       }
     } catch (error) {
-      data = null as unknown
+      data = null as T
     }
 
     if (!success) {
+      const errorData = data as Record<string, unknown> | null
       throw this.createError(
         this.getErrorType(response.status),
-        data?.message || response.statusText,
+        (errorData && typeof errorData === 'object' && 'message' in errorData ? errorData.message as string : undefined) || response.statusText,
         response.status,
-        data?.code,
-        data
+        (errorData && typeof errorData === 'object' && 'code' in errorData ? errorData.code as string : undefined),
+        errorData || undefined
       )
     }
 
@@ -259,7 +260,7 @@ class ApiClient {
    * 处理请求错误
    */
   private handleRequestError(error: unknown): ApiError {
-    if (error.name === 'AbortError') {
+    if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') {
       return this.createError('NETWORK_ERROR', '请求超时', 0)
     }
 
@@ -267,11 +268,14 @@ class ApiClient {
       return this.createError('NETWORK_ERROR', '网络连接失败', 0)
     }
 
-    if (error.type) {
-      return error // 已经是ApiError
+    if (error && typeof error === 'object' && 'type' in error) {
+      return error as ApiError // 已经是ApiError
     }
 
-    return this.createError('SERVER_ERROR', error.message || '未知错误', 500)
+    const errorMessage = error && typeof error === 'object' && 'message' in error
+      ? (error.message as string)
+      : '未知错误'
+    return this.createError('SERVER_ERROR', errorMessage, 500)
   }
 
   /**
@@ -321,8 +325,8 @@ class ApiClient {
    * 判断是否应该重试
    */
   private shouldRetry(error: unknown): boolean {
-    if (error.name === 'AbortError') return false
-    if (error.status && error.status < 500) return false
+    if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') return false
+    if (error && typeof error === 'object' && 'status' in error && typeof error.status === 'number' && error.status < 500) return false
     return true
   }
 

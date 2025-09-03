@@ -224,11 +224,7 @@ export interface ChartDataPoint {
   yearlyGain: number
 }
 
-export interface ValidationError {
-  field: string
-  message: string
-  code: string
-}
+// ValidationError已在上面定义，移除重复定义
 
 export interface ApiError {
   message: string
