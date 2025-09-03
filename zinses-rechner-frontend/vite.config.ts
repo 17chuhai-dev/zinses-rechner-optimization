@@ -171,7 +171,12 @@ export default defineConfig(({ mode, command }) => {
         }
       } : {},
 
+      // 并行构建优化
       rollupOptions: {
+        // 并行处理
+        maxParallelFileOps: 5,
+        // 缓存优化
+        cache: true,
         output: {
           // 代码分割优化 - Core Web Vitals优化
           manualChunks: (id) => {
@@ -230,16 +235,20 @@ export default defineConfig(({ mode, command }) => {
               return 'utils-http'
             }
 
-            // 国际化
+            // 德语本地化 - 优化后的单一语言包
             if (id.includes('vue-i18n') || id.includes('@intlify')) {
-              return 'i18n'
+              return 'de'
             }
 
             // 第三方库 - 通用分组
             if (id.includes('node_modules')) {
               // 小型工具库合并
               if (id.includes('nanoid') || id.includes('uuid') || id.includes('crypto-js')) {
-                return 'vendor-utils'
+                return 'vendor-libs'
+              }
+              // 计算器相关库
+              if (id.includes('decimal.js') || id.includes('big.js')) {
+                return 'math-libs'
               }
               return 'vendor-libs'
             }
@@ -296,6 +305,16 @@ export default defineConfig(({ mode, command }) => {
   server: {
     port: 5173,
     host: true,
+    // 预热文件 - 提升开发体验
+    warmup: {
+      clientFiles: [
+        './src/main.ts',
+        './src/App.vue',
+        './src/router/index.ts',
+        './src/stores/index.ts',
+        './src/services/I18nService.ts'
+      ]
+    },
     // API代理配置
     proxy: {
       '/api': {
@@ -325,7 +344,12 @@ export default defineConfig(({ mode, command }) => {
         'date-fns/format',
         'date-fns/parseISO',
         'date-fns/addDays',
-        'date-fns/differenceInDays'
+        'date-fns/differenceInDays',
+        'date-fns/startOfDay',
+        'date-fns/endOfDay',
+        // 加密工具
+        'crypto-js/md5',
+        'crypto-js/sha256'
       ],
       exclude: [
         // 排除大型库，使用动态导入优化LCP
@@ -338,12 +362,19 @@ export default defineConfig(({ mode, command }) => {
         'html2canvas',
         'file-saver',
         // 开发工具
-        'vite-plugin-vue-devtools'
+        'vite-plugin-vue-devtools',
+        // 可选依赖
+        'web-vitals',
+        '@sentry/vue'
       ],
       // 强制预构建
       force: false,
       // 预构建缓存目录
-      cacheDir: 'node_modules/.vite'
+      cacheDir: 'node_modules/.vite',
+      // 预构建并发数
+      esbuildOptions: {
+        target: 'es2020'
+      }
     },
 
     // 性能优化配置

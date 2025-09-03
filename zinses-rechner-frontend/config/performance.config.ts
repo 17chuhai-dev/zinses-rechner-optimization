@@ -97,28 +97,28 @@ export const optimizeDepsConfig = {
 
 // 构建优化配置
 export const buildOptimizationConfig = {
-  // 目标浏览器
+  // 目标浏览器 - 基于德语市场主流浏览器
   target: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14'],
 
-  // 代码分割阈值
-  chunkSizeWarningLimit: 500, // KB
+  // 代码分割阈值 - 优化后降低
+  chunkSizeWarningLimit: 400, // KB (从500KB降低)
 
-  // 内联资源阈值
-  assetsInlineLimit: 4096, // bytes
+  // 内联资源阈值 - 优化小文件内联
+  assetsInlineLimit: 8192, // bytes (从4096提升到8192)
 
-  // Terser配置
+  // Terser配置 - 优化压缩策略
   terserOptions: {
     compress: {
-      // 移除console
+      // 移除console - 生产环境
       drop_console: true,
       drop_debugger: true,
-      pure_funcs: ['console.log', 'console.info', 'console.debug'],
-      // 优化选项
-      passes: 2,
+      pure_funcs: ['console.log', 'console.info', 'console.debug', 'console.warn'],
+      // 优化选项 - 提升压缩效果
+      passes: 3, // 增加到3次
       unsafe: false,
       unsafe_comps: false,
       unsafe_Function: false,
-      unsafe_math: false,
+      unsafe_math: true, // 启用数学优化
       unsafe_symbols: false,
       unsafe_methods: false,
       unsafe_proto: false,
@@ -126,15 +126,27 @@ export const buildOptimizationConfig = {
       unsafe_undefined: false,
       // 移除未使用代码
       dead_code: true,
-      unused: true
+      unused: true,
+      // 德语专注优化
+      reduce_vars: true,
+      reduce_funcs: true,
+      collapse_vars: true,
+      // 字符串优化
+      join_vars: true,
+      sequences: true
     },
     mangle: {
       safari10: true,
-      properties: false
+      properties: false,
+      // 保留德语相关函数名
+      reserved: ['t', 'i18n', 'de']
     },
     format: {
       comments: false,
-      ascii_only: true
+      ascii_only: true,
+      // 优化输出格式
+      beautify: false,
+      indent_level: 0
     }
   },
 
