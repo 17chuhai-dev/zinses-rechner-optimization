@@ -32,18 +32,8 @@
         <!-- 通用设置 -->
         <div v-if="activeTab === 'general'" class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
           <h3 class="text-xl font-semibold mb-6">通用设置</h3>
-          
-          <div class="space-y-6">
-            <!-- 语言设置 -->
-            <div>
-              <label class="block text-sm font-medium mb-2">语言</label>
-              <select v-model="settings.language" class="w-full max-w-xs p-2 border rounded-lg">
-                <option value="de">Deutsch</option>
-                <option value="en">English</option>
-                <option value="fr">Français</option>
-              </select>
-            </div>
 
+          <div class="space-y-6">
             <!-- 货币设置 -->
             <div>
               <label class="block text-sm font-medium mb-2">默认货币</label>
@@ -81,7 +71,7 @@
         <!-- 外观设置 -->
         <div v-if="activeTab === 'appearance'" class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
           <h3 class="text-xl font-semibold mb-6">外观设置</h3>
-          
+
           <div class="space-y-6">
             <!-- 主题设置 -->
             <div>
@@ -156,7 +146,7 @@
         <!-- 计算设置 -->
         <div v-if="activeTab === 'calculation'" class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
           <h3 class="text-xl font-semibold mb-6">计算设置</h3>
-          
+
           <div class="space-y-6">
             <!-- 默认利率 -->
             <div>
@@ -210,7 +200,7 @@
         <!-- 隐私设置 -->
         <div v-if="activeTab === 'privacy'" class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
           <h3 class="text-xl font-semibold mb-6">隐私设置</h3>
-          
+
           <div class="space-y-6">
             <!-- 数据收集 -->
             <div>
@@ -299,23 +289,22 @@ const activeTab = ref('general')
 // 设置数据
 const settings = reactive({
   // 通用设置
-  language: 'de',
   currency: 'EUR',
   numberFormat: 'de',
   timezone: 'Europe/Berlin',
-  
+
   // 外观设置
   theme: 'auto',
   fontSize: 'medium',
   animations: true,
   highContrast: false,
-  
+
   // 计算设置
   defaultInterestRate: 3.0,
   precision: 2,
   autoSave: true,
   historyDays: 30,
-  
+
   // 隐私设置
   analytics: false,
   cookies: true
@@ -331,7 +320,6 @@ const saveSettings = () => {
 const resetSettings = () => {
   // 重置为默认设置
   Object.assign(settings, {
-    language: 'de',
     currency: 'EUR',
     numberFormat: 'de',
     timezone: 'Europe/Berlin',

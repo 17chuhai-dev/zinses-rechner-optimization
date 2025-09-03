@@ -11,28 +11,28 @@ export const chunkSplitConfig = {
     router: ['vue-router'],
     store: ['pinia']
   },
-  
+
   // UI组件包 - 按需加载
   ui: {
     headless: ['@headlessui/vue'],
     icons: ['@heroicons/vue'],
     styles: ['tailwindcss']
   },
-  
+
   // 图表库包 - 懒加载
   charts: {
     core: ['chart.js', 'chartjs-adapter-date-fns'],
     vue: ['vue-chartjs'],
     three: ['three', '@three-ts/orbit-controls']
   },
-  
+
   // 导出功能包 - 懒加载
   export: {
     pdf: ['jspdf', 'jspdf-autotable'],
     excel: ['xlsx', 'papaparse'],
     utils: ['html2canvas', 'file-saver']
   },
-  
+
   // 工具库包
   utils: {
     date: ['date-fns'],
@@ -40,10 +40,7 @@ export const chunkSplitConfig = {
     http: ['axios', 'ky'],
     crypto: ['crypto-js', 'nanoid']
   },
-  
-  // 国际化包
-  i18n: ['vue-i18n', '@intlify/core-base'],
-  
+
   // 开发工具包 - 仅开发环境
   devtools: ['vite-plugin-vue-devtools', '@vue/devtools-api']
 }
@@ -56,12 +53,12 @@ export const optimizeDepsConfig = {
     'vue',
     'vue-router',
     'pinia',
-    
+
     // UI组件
     '@headlessui/vue',
     '@heroicons/vue/24/outline',
     '@heroicons/vue/24/solid',
-    
+
     // 常用工具
     'nanoid',
     'date-fns/format',
@@ -70,12 +67,12 @@ export const optimizeDepsConfig = {
     'date-fns/differenceInDays',
     'date-fns/startOfDay',
     'date-fns/endOfDay',
-    
+
     // 小型工具库
     'crypto-js/md5',
     'crypto-js/sha256'
   ],
-  
+
   // 排除预构建的包
   exclude: [
     // 大型库 - 使用动态导入
@@ -87,11 +84,11 @@ export const optimizeDepsConfig = {
     'papaparse',
     'html2canvas',
     'file-saver',
-    
+
     // 开发工具
     'vite-plugin-vue-devtools',
     '@vue/devtools-api',
-    
+
     // 可选依赖
     'web-vitals',
     '@sentry/vue'
@@ -102,13 +99,13 @@ export const optimizeDepsConfig = {
 export const buildOptimizationConfig = {
   // 目标浏览器
   target: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14'],
-  
+
   // 代码分割阈值
   chunkSizeWarningLimit: 500, // KB
-  
+
   // 内联资源阈值
   assetsInlineLimit: 4096, // bytes
-  
+
   // Terser配置
   terserOptions: {
     compress: {
@@ -140,7 +137,7 @@ export const buildOptimizationConfig = {
       ascii_only: true
     }
   },
-  
+
   // CSS优化
   cssCodeSplit: true,
   cssMinify: true
@@ -165,7 +162,7 @@ export const serverConfig = {
       ]
     }
   },
-  
+
   // 预览服务器
   preview: {
     port: 4173,
@@ -183,7 +180,7 @@ export const cacheConfig = {
     cacheDir: 'node_modules/.vite',
     force: false
   },
-  
+
   // 构建缓存
   build: {
     // 启用持久化缓存
@@ -213,7 +210,7 @@ export const performanceBudgetConfig = {
       maximumError: '400kb'
     }
   ],
-  
+
   // Core Web Vitals目标
   webVitals: {
     fcp: 1.5, // First Contentful Paint (秒)
@@ -235,7 +232,7 @@ export const lazyLoadingConfig = {
     // 块预取
     chunkPrefetch: true
   },
-  
+
   // 组件懒加载
   components: {
     // 大型组件
@@ -252,7 +249,7 @@ export const lazyLoadingConfig = {
       'HelpCenter'
     ]
   },
-  
+
   // 图片懒加载
   images: {
     // 占位符
@@ -275,7 +272,7 @@ export const compressionConfig = {
       level: 9
     }
   },
-  
+
   // Brotli压缩
   brotli: {
     algorithm: 'brotliCompress',
@@ -339,13 +336,13 @@ export const devOptimizationConfig = {
     port: 24678,
     overlay: true
   },
-  
+
   // 源码映射
   sourcemap: true,
-  
+
   // 清除控制台
   clearScreen: false,
-  
+
   // 日志级别
   logLevel: 'info'
 }
